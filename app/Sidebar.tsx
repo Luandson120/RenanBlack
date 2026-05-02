@@ -23,11 +23,14 @@ export default function Navbar() {
 
         {/* Menu desktop */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link href="/agendamento" className="flex items-center gap-2 text-sm font-medium hover:text-yellow-400 transition-colors">
+          <Link 
+            href="/app/agendamento/page.tsx" 
+            className="flex items-center gap-2 text-sm font-medium hover:text-yellow-400 transition-colors"
+          >
             <Calendar size={16} />
             Agendamento
-          </Link>
-          <Link href="/clube" className="flex items-center gap-2 text-sm font-medium hover:text-yellow-400 transition-colors">
+        </Link>
+          <Link href="/clubec:\Users\Luand\Downloads\page.tsx" className="flex items-center gap-2 text-sm font-medium hover:text-yellow-400 transition-colors">
   <Handshake size={16} />
             Clube
           </Link>
