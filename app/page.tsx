@@ -1,211 +1,276 @@
+"use client";
 
-
+import React, { useState, useMemo, useEffect } from "react";
+import { Scissors, User, CreditCard, Smile, Star, ChevronLeft, Check, Smartphone } from "lucide-react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
-import { db } from "@/lib/prisma";
-import BarberShopItem from "@/components/ui/BarberShopItem";
+import { createBooking } from "app/actions/booking";
+import type { BarbershopService } from "@/generated/prisma";
 
+// ─── Tipos ────────────────────────────────────────────────────────
 
-export default async function Home() {
-  const barbershops = await db.barbershop.findMany({});
+type DayOption = {
+  name: string;
+  num: number;
+  month: number;
+  year: number;
+  disabled: boolean;
+};
+
+type FormData = {
+  name: string;
+  phone: string;
+  notes: string;
+};
+
+type FormErrors = Partial<Record<keyof FormData, string>>;
+
+type Props = {
+  barbershopId: string;
+  services: BarbershopService[];
+  takenByDate: Record<string, string[]>;
+};
+
+// ─── Constantes (Inspiradas na Black Zone) ────────────────────────
+
+const ALL_TIMES = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const STEPS = ["Serviço", "Data", "Horário", "Confirmação"];
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+function buildWeek(): DayOption[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dow = d.getDay();
+    return {
+      name: DAY_NAMES[dow],
+      num: d.getDate(),
+      month: d.getMonth(),
+      year: d.getFullYear(),
+      disabled: dow === 0, // Na Black Zone, domingo costuma ter horário reduzido ou fechado
+    };
+  });
+}
+
+function formatDate(day: DayOption): string {
+  return `${String(day.num).padStart(2, "0")}/${String(day.month + 1).padStart(2, "0")}/${day.year}`;
+}
+
+function formatPrice(price: number): string {
+  return price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+// ─── Sub-componentes ───────────────────────────────────────────────
+
+function BookingSummary({ service, day, time }: { service?: BarbershopService; day: DayOption; time: string }) {
+  if (!service) return null; // Proteção contra o erro 'reading name'
+
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
-      style={{ background: "#0a0a0a", color: "#f5f0e8", fontFamily: "'Barlow', sans-serif" }}>
+    <div className="border border-[#d4a017]/30 rounded p-4 mb-4 bg-[#d4a017]/5 flex flex-col gap-1.5 animate-in fade-in zoom-in duration-300">
+      <p className="text-[10px] tracking-[0.18em] uppercase text-[#d4a017] font-bold mb-1">Resumo do Agendamento</p>
+      <div className="flex justify-between text-sm">
+        <span className="text-[#f5f0e8]/50">Serviço</span>
+        <span className="font-medium text-[#f5f0e8]">{service.name}</span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span className="text-[#f5f0e8]/50">Preço</span>
+        <span className="font-medium text-[#d4a017]">{formatPrice(Number(service.price))}</span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span className="text-[#f5f0e8]/50">Data</span>
+        <span className="font-medium text-[#f5f0e8]">{formatDate(day)}</span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span className="text-[#f5f0e8]/50">Horário</span>
+        <span className="font-medium text-[#f5f0e8]">{time || "Não selecionado"}</span>
+      </div>
+    </div>
+  );
+}
 
-      {/* Google Fonts */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap');
+// ─── Componente Principal ──────────────────────────────────────────
 
-        .bb-stripe {
-          position: absolute;
-          top: 0; bottom: 0;
-          width: 3px;
-          background: linear-gradient(to bottom, transparent, #d4a017 30%, #d4a017 70%, transparent);
-        }
-        .bb-service-card {
-          background: rgba(255,255,255,0.04);
-          border: 0.5px solid rgba(212,160,23,0.25);
-          border-radius: 4px;
-          padding: 18px 20px;
-          cursor: pointer;
-          transition: all 0.2s;
-          width: 130px;
-          text-decoration: none;
-          color: inherit;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 10px;
-        }
-        .bb-service-card:hover {
-          background: rgba(212,160,23,0.1);
-          border-color: #d4a017;
-          transform: translateY(-2px);
-        }
-        .bb-search-input {
-          flex: 1;
-          background: rgba(255,255,255,0.06);
-          border: 0.5px solid rgba(245,240,232,0.2);
-          border-right: none;
-          color: #f5f0e8;
-          padding: 10px 16px;
-          font-family: 'Barlow', sans-serif;
-          font-size: 13px;
-          border-radius: 2px 0 0 2px;
-          outline: none;
-        }
-        .bb-search-input::placeholder { color: rgba(245,240,232,0.3); }
-        .bb-search-input:focus {
-          border-color: rgba(212,160,23,0.5);
-          background: rgba(212,160,23,0.05);
-        }
-        .bb-search-btn {
-          background: #d4a017;
-          color: #0a0a0a;
-          border: none;
-          padding: 10px 18px;
-          font-family: 'Barlow', sans-serif;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          cursor: pointer;
-          border-radius: 0 2px 2px 0;
-          transition: background 0.2s;
-        }
-        .bb-search-btn:hover { background: #e6b420; }
-        .bb-cta {
-          display: inline-block;
-          background: #d4a017;
-          color: #0a0a0a;
-          text-decoration: none;
-          padding: 14px 36px;
-          font-family: 'Barlow', sans-serif;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          border-radius: 2px;
-          transition: all 0.2s;
-        }
-        .bb-cta:hover { background: #e6b420; transform: translateY(-1px); }
-      `}</style>
+export default function BookingPage({ barbershopId, services = [], takenByDate = {} }: Props) {
+  const WEEK = useMemo(() => buildWeek(), []);
+  const firstAvailable = WEEK.find((d) => !d.disabled);
 
-      {/* Decorative stripes */}
-      <div className="bb-stripe" style={{ left: 52, opacity: 0.6 }} />
-      <div className="bb-stripe" style={{ right: 52, opacity: 0.3 }} />
+  // Estados
+  const [step, setStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
+  const [serviceId, setServiceId] = useState<string>(services[0]?.id || "");
+  const [selectedDay, setSelectedDay] = useState<DayOption>(firstAvailable ?? WEEK[0]);
+  const [selectedTime, setTime] = useState<string>("");
+  const [form, setForm] = useState<FormData>({ name: "", phone: "", notes: "" });
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-      {/* Background scissors */}
-      <svg
-        style={{ position: "absolute", right: -20, bottom: 40, opacity: 0.04, pointerEvents: "none", zIndex: 0 }}
-        width="280" height="280" viewBox="0 0 100 100" fill="none"
-      >
-        <circle cx="25" cy="30" r="12" stroke="#d4a017" strokeWidth="3" />
-        <circle cx="75" cy="30" r="12" stroke="#d4a017" strokeWidth="3" />
-        <line x1="33" y1="38" x2="67" y2="62" stroke="#d4a017" strokeWidth="3" />
-        <line x1="67" y1="38" x2="33" y2="62" stroke="#d4a017" strokeWidth="3" />
-      </svg>
+  // Cálculo do serviço ativo com fallback seguro
+  const activeService = useMemo(() => {
+    return services.find((s) => s.id === serviceId) || services[0];
+  }, [services, serviceId]);
 
-      {/* Main content */}
-      <main
-        style={{ position: "relative", zIndex: 1, maxWidth: 680, width: "100%", padding: "40px 32px 48px" }}
-        className="flex flex-col items-center text-center"
-      >
-        {/* Badge */}
-        <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase",
-          color: "#d4a017", border: "1px solid rgba(212,160,23,0.4)",
-          padding: "5px 14px", borderRadius: 2, marginBottom: 20,
-        }}>
-          Est. Mamanguape — PB
+  // Reset de horário ao mudar o dia
+  useEffect(() => {
+    setTime("");
+  }, [selectedDay]);
+
+  const takenTimesForDay = useMemo(() => {
+    const key = `${selectedDay.year}-${String(selectedDay.month + 1).padStart(2, "0")}-${String(selectedDay.num).padStart(2, "0")}`;
+    return new Set(takenByDate[key] ?? []);
+  }, [takenByDate, selectedDay]);
+
+  const handleNext = () => setStep((s) => Math.min(s + 1, 4));
+  const handleBack = () => setStep((s) => Math.max(s - 1, 1));
+
+  async function handleSubmit() {
+    if (!form.name.trim() || form.phone.length < 10) {
+      setErrors({ name: !form.name.trim() ? "Nome obrigatório" : "", phone: form.phone.length < 10 ? "Telefone inválido" : "" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await createBooking({
+        ...form,
+        serviceId: activeService.id,
+        barbershopId,
+        date: formatDate(selectedDay),
+        time: selectedTime,
+      });
+
+      if (result?.error) {
+        setServerError(result.error);
+      } else {
+        setSubmitted(true);
+      }
+    } catch (e) {
+      setServerError("Erro ao processar. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0e8] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center mb-6">
+          <Check size={40} className="text-green-500" />
         </div>
-
-        {/* Title */}
-        <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "clamp(56px, 11vw, 88px)", lineHeight: 0.9, letterSpacing: "0.02em", margin: "0 0 6px" }}>
-          Renan
-          <span style={{ color: "#d4a017", display: "block" }}>Black</span>
-          <span style={{ color: "#f5f0e8", fontSize: "0.55em", letterSpacing: "0.08em", display: "block", marginTop: 4 }}>Barber</span>
-        </h1>
-
-        {/* Subtitle */}
-        <p style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(245,240,232,0.4)", marginBottom: 32, fontWeight: 500 }}>
-          Cortes · Barba · Assinatura
-        </p>
-
-        {/* Divider */}
-        <div style={{ width: 48, height: 1, background: "#d4a017", marginBottom: 32 }} />
-
-        {/* Search */}
-        <Card className="flex justify-between">
-        <div className="flex flex-col gap-2 py-5" style={{ display: "flex", gap: 0, marginBottom: 36, width: "100%", maxWidth: 380 }}>
-          <p style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(245,240,232,0.4)", marginBottom: 32, fontWeight: 500 }}>
-            Abril
-        </p>
-        <p style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(245,240,232,0.4)", marginBottom: 32, fontWeight: 500 }}>
-        85
-        </p>
-        <p style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(245,240,232,0.4)", marginBottom: 32, fontWeight: 500 }}>
-          20:00
-        </p>
-
+        <h1 className="font-['Bebas_Neue'] text-5xl tracking-widest uppercase mb-2">Reserva <span className="text-[#d4a017]">Confirmada!</span></h1>
+        <p className="text-[#f5f0e8]/60 mb-8">Obrigado, {form.name}! Seu horário na Black Zone está garantido.</p>
+        <div className="w-full max-w-md">
+          <BookingSummary service={activeService} day={selectedDay} time={selectedTime} />
         </div>
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "clamp(56px, 11vw, 88px)", lineHeight: 0.9, letterSpacing: "0.02em", margin: "0 0 6px" }}>
-          Renan    
-          </h1>
-          {barbershops.map(barbershop => (
-            <BarberShopItem key={barbershop.id} barbershop={barbershop} />
-          ))}
-        </Card>
+        <Link href="/" className="mt-8 text-[#d4a017] hover:underline uppercase tracking-widest text-xs font-bold">Voltar ao Início</Link>
+      </div>
+    );
+  }
 
-        {/* Service cards */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 36, flexWrap: "wrap", justifyContent: "center" }}>
-          <Link href="/app/agendamento.tsx" className="bb-service-card">
-            <div style={{ width: 36, height: 36, background: "rgba(212,160,23,0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4a017" strokeWidth="2">
-                <path d="M12 2a5 5 0 0 1 5 5c0 3-2 5.5-5 7-3-1.5-5-4-5-7a5 5 0 0 1 5-5z" />
-                <path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
-              </svg>
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0e8] p-6 lg:p-12">
+      <div className="max-w-4xl mx-auto">
+        <header className="text-center mb-12">
+          <h1 className="font-['Bebas_Neue'] text-6xl tracking-tighter uppercase mb-4">Black <span className="text-[#d4a017]">Zone</span></h1>
+          <p className="text-[#f5f0e8]/40 uppercase tracking-[0.3em] text-[10px]">Qualidade com preço justo</p>
+        </header>
+
+        {/* Step 1: Serviços */}
+        {step === 1 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {services?.map((svc) => (
+              <button
+                key={svc.id}
+                onClick={() => { setServiceId(svc.id); handleNext(); }}
+                className={`p-6 border rounded-xl text-left transition-all ${serviceId === svc.id ? 'border-[#d4a017] bg-[#d4a017]/10' : 'border-white/10 hover:border-white/30'}`}
+              >
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold uppercase tracking-widest text-sm">{svc.name}</span>
+                  <Scissors size={16} className="text-[#d4a017]" />
+                </div>
+                <span className="text-xl font-bold text-[#d4a017]">{formatPrice(Number(svc.price))}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Step 2: Data */}
+        {step === 2 && (
+          <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
+            <h2 className="text-[#d4a017] uppercase tracking-widest text-xs font-bold mb-6">Selecione o Dia</h2>
+            <div className="grid grid-cols-7 gap-2">
+              {WEEK.map((day, i) => (
+                <button
+                  key={i}
+                  disabled={day.disabled}
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-all ${day.disabled ? 'opacity-20' : selectedDay.num === day.num ? 'bg-[#d4a017] text-black' : 'bg-white/5 hover:bg-white/10'}`}
+                >
+                  <span className="text-[10px] uppercase font-bold">{day.name}</span>
+                  <span className="text-lg font-bold">{day.num}</span>
+                </button>
+              ))}
             </div>
-            <span style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,240,232,0.7)", fontWeight: 500 }}>Cabelo</span>
-          </Link>
+            <button onClick={handleNext} className="w-full mt-8 bg-[#d4a017] text-black font-bold py-4 rounded-xl uppercase tracking-widest hover:bg-[#b88a14]">Próximo</button>
+          </div>
+        )}
 
-          <Link href="/app/agendamento.tsx" className="bb-service-card">
-            <div style={{ width: 36, height: 36, background: "rgba(212,160,23,0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4a017" strokeWidth="2">
-                <path d="M8 3c0 4 2 6 4 8-2 2-4 4-4 8" />
-                <path d="M16 3c0 4-2 6-4 8 2 2 4 4 4 8" />
-                <line x1="8" y1="19" x2="16" y2="19" />
-              </svg>
+        {/* Step 3: Horário */}
+        {step === 3 && (
+          <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
+             <h2 className="text-[#d4a017] uppercase tracking-widest text-xs font-bold mb-6">Horários para {formatDate(selectedDay)}</h2>
+             <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                {ALL_TIMES.map(time => (
+                  <button
+                    key={time}
+                    disabled={takenTimesForDay.has(time)}
+                    onClick={() => setTime(time)}
+                    className={`py-3 rounded-lg border text-sm font-bold ${takenTimesForDay.has(time) ? 'opacity-20 line-through' : selectedTime === time ? 'bg-[#d4a017] border-[#d4a017] text-black' : 'border-white/10 hover:border-[#d4a017]'}`}
+                  >
+                    {time}
+                  </button>
+                ))}
+             </div>
+             <div className="flex gap-4 mt-8">
+                <button onClick={handleBack} className="flex-1 border border-white/20 py-4 rounded-xl uppercase tracking-widest font-bold">Voltar</button>
+                <button onClick={handleNext} disabled={!selectedTime} className="flex-[2] bg-[#d4a017] text-black py-4 rounded-xl uppercase tracking-widest font-bold disabled:opacity-50">Confirmar Horário</button>
+             </div>
+          </div>
+        )}
+
+        {/* Step 4: Finalização */}
+        {step === 4 && (
+          <div className="max-w-md mx-auto">
+            <BookingSummary service={activeService} day={selectedDay} time={selectedTime} />
+            <div className="space-y-4">
+              <input 
+                placeholder="Seu Nome" 
+                className="w-full bg-white/5 border border-white/10 p-4 rounded-xl outline-none focus:border-[#d4a017]" 
+                value={form.name}
+                onChange={e => setForm({...form, name: e.target.value})}
+              />
+              <input 
+                placeholder="WhatsApp (ex: 83993126003)" 
+                className="w-full bg-white/5 border border-white/10 p-4 rounded-xl outline-none focus:border-[#d4a017]" 
+                value={form.phone}
+                onChange={e => setForm({...form, phone: e.target.value})}
+              />
+              <button 
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full bg-[#d4a017] text-black font-bold py-5 rounded-xl uppercase tracking-widest hover:bg-[#b88a14] transition-all disabled:opacity-50"
+              >
+                {loading ? "Processando..." : "Finalizar Agendamento"}
+              </button>
+              <button onClick={handleBack} className="w-full text-white/40 text-xs uppercase tracking-widest font-bold">Voltar</button>
             </div>
-            <span style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,240,232,0.7)", fontWeight: 500 }}>Barba</span>
-          </Link>
-
-          <Link href="/app/agendamento/page.tsx" className="bb-service-card">
-            <div style={{ width: 36, height: 36, background: "rgba(212,160,23,0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4a017" strokeWidth="2">
-                <rect x="3" y="6" width="18" height="13" rx="2" />
-                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-                <line x1="12" y1="10" x2="12" y2="15" />
-                <line x1="9" y1="12.5" x2="15" y2="12.5" />
-              </svg>
-            </div>
-            <span style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,240,232,0.7)", fontWeight: 500 }}>Assinatura</span>
-          </Link>
-        </div>
-
-        {/* CTA */}
-        <Link href="/agendamento" className="bb-cta" style={{ marginBottom: 36 }}>
-          Agendar agora
-        </Link>
-
-        {/* Tagline */}
-        <p style={{
-          fontSize: 14, color: "rgba(245,240,232,0.45)", fontWeight: 300, letterSpacing: "0.04em",
-          lineHeight: 1.6, maxWidth: 320, borderTop: "0.5px solid rgba(245,240,232,0.1)", paddingTop: 24,
-        }}>
-          Cortes modernos, atendimento de qualidade e estilo pra você.
-        </p>
-      </main>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
