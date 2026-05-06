@@ -1,276 +1,234 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { Scissors, User, CreditCard, Smile, Star, ChevronLeft, Check, Smartphone } from "lucide-react";
-import Link from "next/link";
-import { createBooking } from "app/actions/booking";
-import type { BarbershopService } from "@/generated/prisma";
+import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 
-// ─── Tipos ────────────────────────────────────────────────────────
+// O type solicitado
+type TabId = 'cortes' | 'coloracao' | 'tratamentos';
 
-type DayOption = {
-  name: string;
-  num: number;
-  month: number;
-  year: number;
-  disabled: boolean;
-};
+const RenanBlack: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabId>('cortes');
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollRef = useRef<IntersectionObserver | null>(null);
 
-type FormData = {
-  name: string;
-  phone: string;
-  notes: string;
-};
-
-type FormErrors = Partial<Record<keyof FormData, string>>;
-
-type Props = {
-  barbershopId: string;
-  services: BarbershopService[];
-  takenByDate: Record<string, string[]>;
-};
-
-// ─── Constantes (Inspiradas na Black Zone) ────────────────────────
-
-const ALL_TIMES = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const STEPS = ["Serviço", "Data", "Horário", "Confirmação"];
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function buildWeek(): DayOption[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const dow = d.getDay();
-    return {
-      name: DAY_NAMES[dow],
-      num: d.getDate(),
-      month: d.getMonth(),
-      year: d.getFullYear(),
-      disabled: dow === 0, // Na Black Zone, domingo costuma ter horário reduzido ou fechado
-    };
-  });
-}
-
-function formatDate(day: DayOption): string {
-  return `${String(day.num).padStart(2, "0")}/${String(day.month + 1).padStart(2, "0")}/${day.year}`;
-}
-
-function formatPrice(price: number): string {
-  return price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-// ─── Sub-componentes ───────────────────────────────────────────────
-
-function BookingSummary({ service, day, time }: { service?: BarbershopService; day: DayOption; time: string }) {
-  if (!service) return null; // Proteção contra o erro 'reading name'
-
-  return (
-    <div className="border border-[#d4a017]/30 rounded p-4 mb-4 bg-[#d4a017]/5 flex flex-col gap-1.5 animate-in fade-in zoom-in duration-300">
-      <p className="text-[10px] tracking-[0.18em] uppercase text-[#d4a017] font-bold mb-1">Resumo do Agendamento</p>
-      <div className="flex justify-between text-sm">
-        <span className="text-[#f5f0e8]/50">Serviço</span>
-        <span className="font-medium text-[#f5f0e8]">{service.name}</span>
-      </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-[#f5f0e8]/50">Preço</span>
-        <span className="font-medium text-[#d4a017]">{formatPrice(Number(service.price))}</span>
-      </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-[#f5f0e8]/50">Data</span>
-        <span className="font-medium text-[#f5f0e8]">{formatDate(day)}</span>
-      </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-[#f5f0e8]/50">Horário</span>
-        <span className="font-medium text-[#f5f0e8]">{time || "Não selecionado"}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Componente Principal ──────────────────────────────────────────
-
-export default function BookingPage({ barbershopId, services = [], takenByDate = {} }: Props) {
-  const WEEK = useMemo(() => buildWeek(), []);
-  const firstAvailable = WEEK.find((d) => !d.disabled);
-
-  // Estados
-  const [step, setStep] = useState(1);
-  const [submitted, setSubmitted] = useState(false);
-  const [serviceId, setServiceId] = useState<string>(services[0]?.id || "");
-  const [selectedDay, setSelectedDay] = useState<DayOption>(firstAvailable ?? WEEK[0]);
-  const [selectedTime, setTime] = useState<string>("");
-  const [form, setForm] = useState<FormData>({ name: "", phone: "", notes: "" });
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Cálculo do serviço ativo com fallback seguro
-  const activeService = useMemo(() => {
-    return services.find((s) => s.id === serviceId) || services[0];
-  }, [services, serviceId]);
-
-  // Reset de horário ao mudar o dia
   useEffect(() => {
-    setTime("");
-  }, [selectedDay]);
+    const handleScroll = () => setIsScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', handleScroll);
 
-  const takenTimesForDay = useMemo(() => {
-    const key = `${selectedDay.year}-${String(selectedDay.month + 1).padStart(2, "0")}-${String(selectedDay.num).padStart(2, "0")}`;
-    return new Set(takenByDate[key] ?? []);
-  }, [takenByDate, selectedDay]);
-
-  const handleNext = () => setStep((s) => Math.min(s + 1, 4));
-  const handleBack = () => setStep((s) => Math.max(s - 1, 1));
-
-  async function handleSubmit() {
-    if (!form.name.trim() || form.phone.length < 10) {
-      setErrors({ name: !form.name.trim() ? "Nome obrigatório" : "", phone: form.phone.length < 10 ? "Telefone inválido" : "" });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await createBooking({
-        ...form,
-        serviceId: activeService.id,
-        barbershopId,
-        date: formatDate(selectedDay),
-        time: selectedTime,
-      });
-
-      if (result?.error) {
-        setServerError(result.error);
-      } else {
-        setSubmitted(true);
-      }
-    } catch (e) {
-      setServerError("Erro ao processar. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0e8] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center mb-6">
-          <Check size={40} className="text-green-500" />
-        </div>
-        <h1 className="font-['Bebas_Neue'] text-5xl tracking-widest uppercase mb-2">Reserva <span className="text-[#d4a017]">Confirmada!</span></h1>
-        <p className="text-[#f5f0e8]/60 mb-8">Obrigado, {form.name}! Seu horário na Black Zone está garantido.</p>
-        <div className="w-full max-w-md">
-          <BookingSummary service={activeService} day={selectedDay} time={selectedTime} />
-        </div>
-        <Link href="/" className="mt-8 text-[#d4a017] hover:underline uppercase tracking-widest text-xs font-bold">Voltar ao Início</Link>
-      </div>
+    scrollRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      },
+      { threshold: 0.1 }
     );
-  }
+
+    document.querySelectorAll('.fade-up').forEach((el) => scrollRef.current?.observe(el));
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      scrollRef.current?.disconnect();
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0e8] p-6 lg:p-12">
-      <div className="max-w-4xl mx-auto">
-        <header className="text-center mb-12">
-          <h1 className="font-['Bebas_Neue'] text-6xl tracking-tighter uppercase mb-4">Black <span className="text-[#d4a017]">Zone</span></h1>
-          <p className="text-[#f5f0e8]/40 uppercase tracking-[0.3em] text-[10px]">Qualidade com preço justo</p>
-        </header>
+    <div className="app-container" style={{ backgroundColor: '#080808', color: '#f5f0e8', fontFamily: 'Barlow, sans-serif', overflowX: 'hidden' }}>
+      <style>{`
+        :root {
+          --gold: #d4a017;
+          --black: #080808;
+          --dark2: #181818;
+          --cream: #f5f0e8;
+          --cream-dim: rgba(245,240,232,0.55);
+        }
 
-        {/* Step 1: Serviços */}
-        {step === 1 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {services?.map((svc) => (
-              <button
-                key={svc.id}
-                onClick={() => { setServiceId(svc.id); handleNext(); }}
-                className={`p-6 border rounded-xl text-left transition-all ${serviceId === svc.id ? 'border-[#d4a017] bg-[#d4a017]/10' : 'border-white/10 hover:border-white/30'}`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-bold uppercase tracking-widest text-sm">{svc.name}</span>
-                  <Scissors size={16} className="text-[#d4a017]" />
-                </div>
-                <span className="text-xl font-bold text-[#d4a017]">{formatPrice(Number(svc.price))}</span>
-              </button>
+        .hero-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 40px;
+          padding: 120px 5% 60px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        @media (min-width: 992px) {
+          .hero-grid { grid-template-columns: 1.2fr 0.8fr; align-items: center; min-height: 100vh; }
+        }
+
+        .hero-title { 
+            font-family: 'Bebas Neue', cursive; 
+            font-size: clamp(50px, 15vw, 120px); 
+            line-height: 0.85; 
+            margin-bottom: 20px;
+        }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+        .price-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 15px;
+          animation: fadeIn 0.4s ease;
+        }
+        @media (min-width: 768px) { .price-grid { grid-template-columns: 1fr 1fr; gap: 40px; } }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .fade-up { opacity: 0; transform: translateY(30px); transition: all 0.8s cubic-bezier(0.2, 1, 0.3, 1); }
+        .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+        .btn-primary { 
+            background: var(--gold); 
+            color: var(--black); 
+            padding: 14px 28px; 
+            border-radius: 4px; 
+            text-decoration: none; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            font-size: 13px; 
+            display: inline-block; 
+            transition: 0.3s;
+            border: 1px solid var(--gold);
+        }
+        .btn-primary:hover { background: transparent; color: var(--gold); }
+        
+        .tab-button {
+          background: none; border: none; padding: 12px 15px; cursor: pointer;
+          color: var(--cream-dim); font-size: 12px; text-transform: uppercase; font-weight: 700;
+          border-bottom: 2px solid transparent; transition: 0.3s;
+        }
+        .tab-button.active { color: var(--gold); border-bottom-color: var(--gold); }
+      `}</style>
+
+      {/* HERO SECTION */}
+      <section id="home">
+        <div className="hero-grid">
+          <div className="fade-up visible">
+            <p style={{ color: 'var(--gold)', letterSpacing: '.4em', textTransform: 'uppercase', fontSize: '11px', marginBottom: '15px', fontWeight: 700 }}>Premium Grooming</p>
+           <h1 className="hero-title">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '400px', 
+                  display: 'block'
+                }} 
+              />
+            </h1>
+            <p style={{ maxWidth: '480px', color: 'var(--cream-dim)', lineHeight: 1.8, fontSize: '17px', fontWeight: 300 }}>
+              Redefinindo o estilo clássico com técnicas modernas. Na <strong>RenanBlack</strong>, cada corte é uma assinatura de confiança e excelência.
+            </p>
+            <div style={{ marginTop: '35px' }}>
+              <a href="#precos" className="btn-primary">Ver Serviços</a>
+            </div>
+          </div>
+
+          <div className="stats-grid fade-up visible" style={{ alignSelf: 'center' }}>
+            {[
+              { n: '2020', l: 'Fundação' },
+              { n: '15k+', l: 'Clientes' },
+              { n: 'R$40', l: 'Preço Base' },
+              { n: '4.9', l: 'Google Aval.' }
+            ].map((stat, i) => (
+              <div key={i} style={{ background: 'var(--dark2)', padding: '25px 15px', borderRadius: '10px', border: '1px solid rgba(212,160,23,.08)', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Bebas Neue', fontSize: '38px', color: 'var(--gold)', lineHeight: 1 }}>{stat.n}</div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--cream-dim)', letterSpacing: '2px', marginTop: '5px' }}>{stat.l}</div>
+              </div>
             ))}
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* Step 2: Data */}
-        {step === 2 && (
-          <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
-            <h2 className="text-[#d4a017] uppercase tracking-widest text-xs font-bold mb-6">Selecione o Dia</h2>
-            <div className="grid grid-cols-7 gap-2">
-              {WEEK.map((day, i) => (
+      {/* SEÇÃO DE PREÇOS COM LÓGICA DE ABAS */}
+      <section id="precos" style={{ padding: '100px 5%', background: '#0a0a0a' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div className="fade-up">
+            <div style={{ textAlign: 'center', marginBottom: '50px' }}>
+                <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(45px, 8vw, 70px)', letterSpacing: '2px' }}>
+                  Tabela de <span style={{ color: 'var(--gold)' }}>Serviços</span>
+                </h2>
+                <div style={{ width: '60px', height: '3px', background: 'var(--gold)', margin: '15px auto' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', overflowX: 'auto', gap: '15px', marginBottom: '40px', borderBottom: '1px solid rgba(212,160,23,.1)', paddingBottom: '5px' }}>
+              {(['cortes', 'coloracao', 'tratamentos'] as TabId[]).map((tab) => (
                 <button
-                  key={i}
-                  disabled={day.disabled}
-                  onClick={() => setSelectedDay(day)}
-                  className={`flex flex-col items-center p-3 rounded-lg transition-all ${day.disabled ? 'opacity-20' : selectedDay.num === day.num ? 'bg-[#d4a017] text-black' : 'bg-white/5 hover:bg-white/10'}`}
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`tab-button ${activeTab === tab ? 'active' : ''}`}
                 >
-                  <span className="text-[10px] uppercase font-bold">{day.name}</span>
-                  <span className="text-lg font-bold">{day.num}</span>
+                  {tab === 'coloracao' ? 'Química' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
-            <button onClick={handleNext} className="w-full mt-8 bg-[#d4a017] text-black font-bold py-4 rounded-xl uppercase tracking-widest hover:bg-[#b88a14]">Próximo</button>
-          </div>
-        )}
 
-        {/* Step 3: Horário */}
-        {step === 3 && (
-          <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
-             <h2 className="text-[#d4a017] uppercase tracking-widest text-xs font-bold mb-6">Horários para {formatDate(selectedDay)}</h2>
-             <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                {ALL_TIMES.map(time => (
-                  <button
-                    key={time}
-                    disabled={takenTimesForDay.has(time)}
-                    onClick={() => setTime(time)}
-                    className={`py-3 rounded-lg border text-sm font-bold ${takenTimesForDay.has(time) ? 'opacity-20 line-through' : selectedTime === time ? 'bg-[#d4a017] border-[#d4a017] text-black' : 'border-white/10 hover:border-[#d4a017]'}`}
-                  >
-                    {time}
-                  </button>
-                ))}
-             </div>
-             <div className="flex gap-4 mt-8">
-                <button onClick={handleBack} className="flex-1 border border-white/20 py-4 rounded-xl uppercase tracking-widest font-bold">Voltar</button>
-                <button onClick={handleNext} disabled={!selectedTime} className="flex-[2] bg-[#d4a017] text-black py-4 rounded-xl uppercase tracking-widest font-bold disabled:opacity-50">Confirmar Horário</button>
-             </div>
-          </div>
-        )}
+            <div className="price-grid">
+              {activeTab === 'cortes' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Corte Degradê (Fade)" price="R$ 40" />
+                    <PriceLine name="Corte Tesoura" price="R$ 55" />
+                    <PriceLine name="Barba Terapêutica" price="R$ 50" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Pezinho / Acabamento" price="R$ 25" />
+                    <PriceLine name="Sobrancelha Navalha" price="R$ 15" />
+                    <PriceLine name="Corte Kids" price="R$ 45" />
+                  </div>
+                </>
+              )}
 
-        {/* Step 4: Finalização */}
-        {step === 4 && (
-          <div className="max-w-md mx-auto">
-            <BookingSummary service={activeService} day={selectedDay} time={selectedTime} />
-            <div className="space-y-4">
-              <input 
-                placeholder="Seu Nome" 
-                className="w-full bg-white/5 border border-white/10 p-4 rounded-xl outline-none focus:border-[#d4a017]" 
-                value={form.name}
-                onChange={e => setForm({...form, name: e.target.value})}
-              />
-              <input 
-                placeholder="WhatsApp (ex: 83993126003)" 
-                className="w-full bg-white/5 border border-white/10 p-4 rounded-xl outline-none focus:border-[#d4a017]" 
-                value={form.phone}
-                onChange={e => setForm({...form, phone: e.target.value})}
-              />
-              <button 
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full bg-[#d4a017] text-black font-bold py-5 rounded-xl uppercase tracking-widest hover:bg-[#b88a14] transition-all disabled:opacity-50"
-              >
-                {loading ? "Processando..." : "Finalizar Agendamento"}
-              </button>
-              <button onClick={handleBack} className="w-full text-white/40 text-xs uppercase tracking-widest font-bold">Voltar</button>
+              {activeTab === 'coloracao' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Platinado / Nevou" price="R$ 120" />
+                    <PriceLine name="Luzes / Reflexo" price="R$ 90" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Pigmentação de Barba" price="R$ 30" />
+                    <PriceLine name="Coloração Simples" price="R$ 60" />
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'tratamentos' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Hidratação Profunda" price="R$ 40" />
+                    <PriceLine name="Limpeza de Pele" price="R$ 35" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <PriceLine name="Massagem Capilar" price="R$ 20" />
+                    <PriceLine name="Selagem Térmica" price="R$ 80" />
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ padding: '80px 5% 40px', background: 'var(--black)', textAlign: 'center', borderTop: '1px solid #1a1a1a' }}>
+        <div style={{ fontFamily: 'Bebas Neue', fontSize: '32px', marginBottom: '20px', letterSpacing: '3px' }}>
+          Renan<span style={{ color: 'var(--gold)' }}>Black</span>
+        </div>
+        <p style={{ fontSize: '10px', color: 'rgba(245,240,232,.2)', textTransform: 'uppercase' }}>
+          © 2026 RenanBlack Concept · Todos os direitos reservados
+        </p>
+      </footer>
     </div>
   );
-}
+};
+
+const PriceLine: React.FC<{ name: string; price: string }> = ({ name, price }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 0', borderBottom: '1px solid rgba(245,240,232,0.03)' }}>
+    <span style={{ fontSize: '15px', fontWeight: 400 }}>{name}</span>
+    <span style={{ color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace', fontSize: '16px' }}>{price}</span>
+  </div>
+);
+
+export default RenanBlack;

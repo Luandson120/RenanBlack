@@ -6,80 +6,106 @@ import { z } from "zod";
 
 const prisma = new PrismaClient();
 
+// ─── Schema de validação ──────────────────────────────────────────
+
 const BookingSchema = z.object({
-  name:        z.string().min(2, "Nome obrigatório"),
-  phone:       z.string().min(10, "WhatsApp inválido"),
-  notes:       z.string().optional(),
-  serviceId:   z.string(),
-  barbershopId: z.string(),
-  date:        z.string(), // "DD/MM/YYYY"
-  time:        z.string(), // "HH:MM"
+  barbershopId: z.string().uuid(),
+  serviceId:    z.string().uuid(),
+  date:         z.string(), // "DD/MM/YYYY"
+  time:         z.string(), // "HH:MM"
+  name:         z.string().min(1),
+  phone:        z.string().min(10),
+  notes:        z.string().optional(),
 });
 
-export type BookingInput = z.infer<typeof BookingSchema>;
+// ─── Converte "DD/MM/YYYY" + "HH:MM" → DateTime UTC ──────────────
 
-export async function createBooking(data: BookingInput) {
-  const parsed = BookingSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
-
-  const { name, phone, notes, serviceId, barbershopId, date, time } = parsed.data;
-
-  // Converte "30/04/2026" + "10:00" → Date UTC
+function parseDateTime(date: string, time: string): Date {
   const [day, month, year] = date.split("/").map(Number);
   const [hours, minutes]   = time.split(":").map(Number);
-  const dateTime = new Date(year, month - 1, day, hours, minutes);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+}
 
-  // Checa conflito de horário na mesma barbearia
+// ─── getServicesWithTakenTimes ────────────────────────────────────
+// Retorna os serviços da barbearia e os horários já ocupados
+// agrupados por data ("YYYY-MM-DD" → string[])
+
+export async function getServicesWithTakenTimes(barbershopId: string) {
+  // 1. Busca os serviços da barbearia
+  const services = await prisma.barbershopService.findMany({
+    where: { barbershopId },
+    orderBy: { name: "asc" },
+  });
+
+  const serviceIds = services.map((s) => s.id);
+
+  // 2. Busca bookings dos próximos 14 dias filtrando pelos serviceIds
+  const now  = new Date();
+  now.setHours(0, 0, 0, 0);
+  const end  = new Date(now);
+  end.setDate(now.getDate() + 14);
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      serviceId: { in: serviceIds },
+      date: { gte: now, lt: end },
+    },
+    select: { date: true },
+  });
+
+  // 3. Agrupa horários por data
+  const takenByDate: Record<string, string[]> = {};
+  for (const b of bookings) {
+    const d   = b.date;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const hh  = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    (takenByDate[key] ??= []).push(hh);
+  }
+
+  return { services, takenByDate };
+}
+
+// ─── createBooking ────────────────────────────────────────────────
+
+export async function createBooking(input: unknown) {
+  const parsed = BookingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Dados inválidos. Verifique os campos e tente novamente." };
+  }
+
+  const { serviceId, date, time, name, phone, notes } = parsed.data;
+  const bookingDate = parseDateTime(date, time);
+
+  // Verifica se o horário ainda está disponível
   const conflict = await prisma.booking.findFirst({
-    where: { barbershopId, date: dateTime },
+    where: { serviceId, date: bookingDate },
   });
   if (conflict) {
-    return { error: "Horário já reservado. Escolha outro." };
+    return { error: "Este horário acabou de ser reservado. Escolha outro." };
+  }
+
+  // Busca ou cria usuário pelo telefone (fluxo sem auth)
+  let user = await prisma.user.findFirst({
+    where: { email: `${phone.replace(/\D/g, "")}@guest.local` },
+  });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        name,
+        email: `${phone.replace(/\D/g, "")}@guest.local`,
+      },
+    });
   }
 
   await prisma.booking.create({
     data: {
-      userId:      phone, // ou session.user.id se tiver auth
+      userId:    user.id,
       serviceId,
-      barbershopId,
-      date:        dateTime,
+      date:      bookingDate,
     },
   });
 
   revalidatePath("/agendamento");
   return { success: true };
-}
-
-// Busca serviços reais da barbearia
-export async function getServicesWithTakenTimes(barbershopId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const nextWeek = new Date(today);
-  nextWeek.setDate(today.getDate() + 7);
-
-  const [services, bookings] = await Promise.all([
-    prisma.barbershopService.findMany({
-      where: { barbershopId },
-      orderBy: { price: "asc" },
-    }),
-    prisma.booking.findMany({
-      where: {
-        barbershopId,
-        date: { gte: today, lt: nextWeek },
-      },
-      select: { date: true },
-    }),
-  ]);
-
-  // { "2026-04-30": ["08:00", "10:00"] }
-  const takenByDate = bookings.reduce<Record<string, string[]>>((acc, b) => {
-    const key  = b.date.toISOString().split("T")[0];
-    const hour = `${String(b.date.getHours()).padStart(2, "0")}:${String(b.date.getMinutes()).padStart(2, "0")}`;
-    acc[key]   = [...(acc[key] ?? []), hour];
-    return acc;
-  }, {});
-
-  return { services, takenByDate };
 }
