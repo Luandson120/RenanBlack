@@ -12,19 +12,22 @@ export default function Navbar() {
     <header className="w-full bg-zinc-900 text-white px-6 py-4">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         
-          <Image
-          src="/renan-logo.png"
+         <Link href="/">
+         <Image
+         src="/renan-logo.png"
           alt="Renan Barber"
           width={120}
           height={40}
           priority
-        /> {/* Logo */}
+        /> 
+        {/* Logo */}
+        </Link> 
      
 
         {/* Menu desktop */}
         <nav className="hidden md:flex items-center gap-8">
           <Link 
-            href="/app/agendamento/page.tsx" 
+            href="/agendamento" 
             className="flex items-center gap-2 text-sm font-medium hover:text-yellow-400 transition-colors"
           >
             <Calendar size={16} />
