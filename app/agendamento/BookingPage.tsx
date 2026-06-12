@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBooking } from "app/actions/booking";
+import { createBooking } from "\@/app/actions/booking";
 
 type Service = { id: string; name: string; price: number; duration: number };
 

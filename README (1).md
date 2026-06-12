@@ -1,11 +1,11 @@
-# Renan Barber 💈
+    # Renan Barber 💈
 
-Sistema de agendamento online para barbearia, desenvolvido com Next.js 16, Prisma ORM e PostgreSQL (Neon).
+Sistema de agendamento online para [/], desenvolvido com Next.js 16, Prisma ORM e PostgreSQL (Neon).
 
 ---
 
 ## 📋 Visão Geral
-
+ss
 O **Renan Barber** é uma aplicação web que permite aos clientes visualizar os serviços disponíveis de uma barbearia e realizar agendamentos online. O sistema conta com autenticação de usuários, listagem de serviços e gerenciamento de agendamentos.
 
 ---
@@ -218,3 +218,5 @@ O projeto utiliza os modelos padrão do **NextAuth.js** (`Account`, `Session`, `
 - O campo `price` nos serviços é do tipo `Decimal` no Prisma. Ao passar dados de Server Components para Client Components, converta com `.toNumber()`.
 - O Prisma Client é gerado na pasta `generated/prisma` (configuração customizada no `schema.prisma`).
 - O projeto usa **Turbopack** como bundler no modo de desenvolvimento.
+
+

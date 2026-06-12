@@ -1,6 +1,7 @@
 import BookingPage from "./BookingPage";
 import { prisma } from "@/lib/prisma";
-    
+
+
 export default async function AgendamentoPage() {
   const barbershop = await prisma.barbershop.findFirst({
     include: { services: true },
