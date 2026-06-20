@@ -7170,6 +7170,7 @@ export namespace Prisma {
     description: string | null
     imageUrl: string | null
     price: Decimal | null
+    ativo: boolean | null
     barbershopId: string | null
   }
 
@@ -7179,6 +7180,7 @@ export namespace Prisma {
     description: string | null
     imageUrl: string | null
     price: Decimal | null
+    ativo: boolean | null
     barbershopId: string | null
   }
 
@@ -7188,6 +7190,7 @@ export namespace Prisma {
     description: number
     imageUrl: number
     price: number
+    ativo: number
     barbershopId: number
     _all: number
   }
@@ -7207,6 +7210,7 @@ export namespace Prisma {
     description?: true
     imageUrl?: true
     price?: true
+    ativo?: true
     barbershopId?: true
   }
 
@@ -7216,6 +7220,7 @@ export namespace Prisma {
     description?: true
     imageUrl?: true
     price?: true
+    ativo?: true
     barbershopId?: true
   }
 
@@ -7225,6 +7230,7 @@ export namespace Prisma {
     description?: true
     imageUrl?: true
     price?: true
+    ativo?: true
     barbershopId?: true
     _all?: true
   }
@@ -7321,6 +7327,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal
+    ativo: boolean
     barbershopId: string
     _count: BarbershopServiceCountAggregateOutputType | null
     _avg: BarbershopServiceAvgAggregateOutputType | null
@@ -7349,6 +7356,7 @@ export namespace Prisma {
     description?: boolean
     imageUrl?: boolean
     price?: boolean
+    ativo?: boolean
     barbershopId?: boolean
     barbershop?: boolean | BarbershopDefaultArgs<ExtArgs>
     bookings?: boolean | BarbershopService$bookingsArgs<ExtArgs>
@@ -7361,6 +7369,7 @@ export namespace Prisma {
     description?: boolean
     imageUrl?: boolean
     price?: boolean
+    ativo?: boolean
     barbershopId?: boolean
     barbershop?: boolean | BarbershopDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["barbershopService"]>
@@ -7371,6 +7380,7 @@ export namespace Prisma {
     description?: boolean
     imageUrl?: boolean
     price?: boolean
+    ativo?: boolean
     barbershopId?: boolean
     barbershop?: boolean | BarbershopDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["barbershopService"]>
@@ -7381,10 +7391,11 @@ export namespace Prisma {
     description?: boolean
     imageUrl?: boolean
     price?: boolean
+    ativo?: boolean
     barbershopId?: boolean
   }
 
-  export type BarbershopServiceOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "description" | "imageUrl" | "price" | "barbershopId", ExtArgs["result"]["barbershopService"]>
+  export type BarbershopServiceOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "description" | "imageUrl" | "price" | "ativo" | "barbershopId", ExtArgs["result"]["barbershopService"]>
   export type BarbershopServiceInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     barbershop?: boolean | BarbershopDefaultArgs<ExtArgs>
     bookings?: boolean | BarbershopService$bookingsArgs<ExtArgs>
@@ -7409,6 +7420,7 @@ export namespace Prisma {
       description: string
       imageUrl: string
       price: Prisma.Decimal
+      ativo: boolean
       barbershopId: string
     }, ExtArgs["result"]["barbershopService"]>
     composites: {}
@@ -7840,6 +7852,7 @@ export namespace Prisma {
     readonly description: FieldRef<"BarbershopService", 'String'>
     readonly imageUrl: FieldRef<"BarbershopService", 'String'>
     readonly price: FieldRef<"BarbershopService", 'Decimal'>
+    readonly ativo: FieldRef<"BarbershopService", 'Boolean'>
     readonly barbershopId: FieldRef<"BarbershopService", 'String'>
   }
     
@@ -10495,6 +10508,7 @@ export namespace Prisma {
     description: 'description',
     imageUrl: 'imageUrl',
     price: 'price',
+    ativo: 'ativo',
     barbershopId: 'barbershopId'
   };
 
@@ -10992,6 +11006,7 @@ export namespace Prisma {
     description?: StringFilter<"BarbershopService"> | string
     imageUrl?: StringFilter<"BarbershopService"> | string
     price?: DecimalFilter<"BarbershopService"> | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFilter<"BarbershopService"> | boolean
     barbershopId?: StringFilter<"BarbershopService"> | string
     barbershop?: XOR<BarbershopScalarRelationFilter, BarbershopWhereInput>
     bookings?: BookingListRelationFilter
@@ -11003,6 +11018,7 @@ export namespace Prisma {
     description?: SortOrder
     imageUrl?: SortOrder
     price?: SortOrder
+    ativo?: SortOrder
     barbershopId?: SortOrder
     barbershop?: BarbershopOrderByWithRelationInput
     bookings?: BookingOrderByRelationAggregateInput
@@ -11017,6 +11033,7 @@ export namespace Prisma {
     description?: StringFilter<"BarbershopService"> | string
     imageUrl?: StringFilter<"BarbershopService"> | string
     price?: DecimalFilter<"BarbershopService"> | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFilter<"BarbershopService"> | boolean
     barbershopId?: StringFilter<"BarbershopService"> | string
     barbershop?: XOR<BarbershopScalarRelationFilter, BarbershopWhereInput>
     bookings?: BookingListRelationFilter
@@ -11028,6 +11045,7 @@ export namespace Prisma {
     description?: SortOrder
     imageUrl?: SortOrder
     price?: SortOrder
+    ativo?: SortOrder
     barbershopId?: SortOrder
     _count?: BarbershopServiceCountOrderByAggregateInput
     _avg?: BarbershopServiceAvgOrderByAggregateInput
@@ -11045,6 +11063,7 @@ export namespace Prisma {
     description?: StringWithAggregatesFilter<"BarbershopService"> | string
     imageUrl?: StringWithAggregatesFilter<"BarbershopService"> | string
     price?: DecimalWithAggregatesFilter<"BarbershopService"> | Decimal | DecimalJsLike | number | string
+    ativo?: BoolWithAggregatesFilter<"BarbershopService"> | boolean
     barbershopId?: StringWithAggregatesFilter<"BarbershopService"> | string
   }
 
@@ -11569,6 +11588,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     barbershop: BarbershopCreateNestedOneWithoutServicesInput
     bookings?: BookingCreateNestedManyWithoutServiceInput
   }
@@ -11579,6 +11599,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     barbershopId: string
     bookings?: BookingUncheckedCreateNestedManyWithoutServiceInput
   }
@@ -11589,6 +11610,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     barbershop?: BarbershopUpdateOneRequiredWithoutServicesNestedInput
     bookings?: BookingUpdateManyWithoutServiceNestedInput
   }
@@ -11599,6 +11621,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     barbershopId?: StringFieldUpdateOperationsInput | string
     bookings?: BookingUncheckedUpdateManyWithoutServiceNestedInput
   }
@@ -11609,6 +11632,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     barbershopId: string
   }
 
@@ -11618,6 +11642,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
   }
 
   export type BarbershopServiceUncheckedUpdateManyInput = {
@@ -11626,6 +11651,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     barbershopId?: StringFieldUpdateOperationsInput | string
   }
 
@@ -12178,6 +12204,7 @@ export namespace Prisma {
     description?: SortOrder
     imageUrl?: SortOrder
     price?: SortOrder
+    ativo?: SortOrder
     barbershopId?: SortOrder
   }
 
@@ -12191,6 +12218,7 @@ export namespace Prisma {
     description?: SortOrder
     imageUrl?: SortOrder
     price?: SortOrder
+    ativo?: SortOrder
     barbershopId?: SortOrder
   }
 
@@ -12200,6 +12228,7 @@ export namespace Prisma {
     description?: SortOrder
     imageUrl?: SortOrder
     price?: SortOrder
+    ativo?: SortOrder
     barbershopId?: SortOrder
   }
 
@@ -13139,6 +13168,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     bookings?: BookingCreateNestedManyWithoutServiceInput
   }
 
@@ -13148,6 +13178,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     bookings?: BookingUncheckedCreateNestedManyWithoutServiceInput
   }
 
@@ -13186,6 +13217,7 @@ export namespace Prisma {
     description?: StringFilter<"BarbershopService"> | string
     imageUrl?: StringFilter<"BarbershopService"> | string
     price?: DecimalFilter<"BarbershopService"> | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFilter<"BarbershopService"> | boolean
     barbershopId?: StringFilter<"BarbershopService"> | string
   }
 
@@ -13334,6 +13366,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     barbershop: BarbershopCreateNestedOneWithoutServicesInput
   }
 
@@ -13343,6 +13376,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
     barbershopId: string
   }
 
@@ -13405,6 +13439,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     barbershop?: BarbershopUpdateOneRequiredWithoutServicesNestedInput
   }
 
@@ -13414,6 +13449,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     barbershopId?: StringFieldUpdateOperationsInput | string
   }
 
@@ -13547,6 +13583,7 @@ export namespace Prisma {
     description: string
     imageUrl: string
     price: Decimal | DecimalJsLike | number | string
+    ativo?: boolean
   }
 
   export type BarbershopServiceUpdateWithoutBarbershopInput = {
@@ -13555,6 +13592,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     bookings?: BookingUpdateManyWithoutServiceNestedInput
   }
 
@@ -13564,6 +13602,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
     bookings?: BookingUncheckedUpdateManyWithoutServiceNestedInput
   }
 
@@ -13573,6 +13612,7 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     imageUrl?: StringFieldUpdateOperationsInput | string
     price?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    ativo?: BoolFieldUpdateOperationsInput | boolean
   }
 
   export type BookingCreateManyServiceInput = {

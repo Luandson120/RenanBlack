@@ -1,6 +1,6 @@
 "use server";
 
-import { PrismaClient } from "../../../../generated/prisma";
+import { PrismaClient } from "../../../generated/prisma";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
