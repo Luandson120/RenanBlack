@@ -1,16 +1,33 @@
 import "dotenv/config";
-
-
 import { PrismaClient } from "../generated/prisma";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Limpa o banco antes de popular
   await prisma.booking.deleteMany();
   await prisma.barbershopService.deleteMany();
   await prisma.barbershop.deleteMany();
+  await prisma.barbeiro.deleteMany();
 
+  // ─── Barbeiro (pré-definido) ──────────────────────────────────────────────
+  const senhaHash = await bcrypt.hash("Klausmiguel", 10);
+
+  await prisma.barbeiro.create({
+    data: {
+      nome: "Renan",
+      cpf: "126.782.824-22",
+      email: "Barbeariarenanblack@gmail.com",
+      senha: senhaHash,
+    },
+  });
+
+  console.log("✅ Barbeiro cadastrado: Renan");
+
+  // ─── Barbearia + Serviços ─────────────────────────────────────────────────
   const barbershop = await prisma.barbershop.create({
     data: {
       name: "Renan Black",
@@ -32,8 +49,7 @@ async function main() {
             },
             {
               name: "Barba",
-              description:
-                "Modelagem completa para destacar sua masculinidade.",
+              description: "Modelagem completa para destacar sua masculinidade.",
               price: 20.0,
               imageUrl:
                 "https://utfs.io/f/e6bdffb6-24a9-455b-aba3-903c2c2b5bde-1jo6tu.png",
@@ -68,8 +84,7 @@ async function main() {
             },
             {
               name: "Assinatura Cabelo e Barba",
-              description:
-                "Corte seu cabelo e faça barba de forma ilimitada.",
+              description: "Corte seu cabelo e faça barba de forma ilimitada.",
               price: 72.5,
               imageUrl:
                 "https://utfs.io/f/c4919193-a675-4c47-9f21-ebd86d1c8e6a-4oen2a.png",
@@ -101,4 +116,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-  

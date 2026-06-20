@@ -1,11 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -14,6 +14,7 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  assinante     Boolean   @default(false)
   accounts      Account[]
   sessions      Session[]
   bookings      Booking[]
@@ -67,6 +68,7 @@ model Barbershop {
   phones      String[]
   description String
   imageUrl    String
+  aberta      Boolean             @default(true)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   services    BarbershopService[]
@@ -90,6 +92,17 @@ model Booking {
   serviceId String
   service   BarbershopService @relation(fields: [serviceId], references: [id])
   date      DateTime
+  status    String            @default("aguardando")
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+}
+
+model Barbeiro {
+  id       String   @id @default(cuid())
+  nome     String
+  cpf      String   @unique
+  email    String   @unique
+  senha    String
+  ativo    Boolean  @default(true)
+  criadoEm DateTime @default(now())
 }
