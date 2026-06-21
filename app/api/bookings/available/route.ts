@@ -1,79 +1,125 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@/generated/prisma";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
-// Horários disponíveis da barbearia
-const ALL_HOURS = [
-  "09:00", "09:30",
-  "10:00", "10:30",
-  "11:00", "11:30",
-  "12:00", "12:30",
-  "13:00", "13:30",
-  "14:00", "14:30",
-  "15:00", "15:30",
-  "16:00", "16:30",
-  "17:00", "17:30",
-  "18:00",
-];
+function getPrisma() {
+  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+  return new PrismaClient({ adapter });
+}
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const date = searchParams.get("date");
+// Horário de funcionamento
+const HORA_ABERTURA = 8;   // 08:00
+const HORA_FECHAMENTO = 18; // 18:00
+const INTERVALO_MIN = 30;   // 30 minutos
 
-    if (!date) {
-      return NextResponse.json(
-        { error: "Parâmetro 'date' é obrigatório. Ex: ?date=2026-05-20" },
-        { status: 400 }
-      );
-    }
+// Gera todos os horários do dia (08:00 até 17:30)
+function gerarHorarios(): string[] {
+  const horarios: string[] = [];
+  let hora = HORA_ABERTURA;
+  let minuto = 0;
 
-    const day = new Date(date);
-
-    if (isNaN(day.getTime())) {
-      return NextResponse.json(
-        { error: "Data inválida. Use o formato YYYY-MM-DD" },
-        { status: 400 }
-      );
-    }
-
-    // Início e fim do dia
-    const startOfDay = new Date(day);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(day);
-    endOfDay.setUTCHours(23, 59, 59, 999);
-
-    // Busca agendamentos já existentes no dia
-    const bookings = await prisma.booking.findMany({
-      where: {
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-      },
-    });
-
-    // Horários já ocupados
-    const bookedHours = bookings.map((b) => {
-      const d = new Date(b.date);
-      const h = d.getUTCHours().toString().padStart(2, "0");
-      const m = d.getUTCMinutes().toString().padStart(2, "0");
-      return `${h}:${m}`;
-    });
-
-    // Filtra os horários disponíveis
-    const available = ALL_HOURS.filter((h) => !bookedHours.includes(h));
-
-    return NextResponse.json({
-      date,
-      available,
-      booked: bookedHours,
-    });
-  } catch (error) {
-    console.error("ERRO AVAILABLE:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
+  while (hora < HORA_FECHAMENTO) {
+    horarios.push(
+      `${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`
     );
+    minuto += INTERVALO_MIN;
+    if (minuto >= 60) {
+      minuto = 0;
+      hora++;
+    }
+  }
+
+  return horarios;
+}
+
+// GET /api/bookings/available?date=YYYY-MM-DD
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const date = searchParams.get("date"); // "YYYY-MM-DD"
+
+  if (!date) {
+    return NextResponse.json({ error: "Parâmetro date obrigatório." }, { status: 400 });
+  }
+
+  const [year, month, day] = date.split("-").map(Number);
+
+  // Verifica se é domingo
+  const diaSemana = new Date(year, month - 1, day).getDay();
+  if (diaSemana === 0) {
+    return NextResponse.json({
+      available: [],
+      fechado: true,
+      mensagem: "Fechado aos domingos.",
+    });
+  }
+
+  // Verifica horário atual se for hoje
+  const agora = new Date();
+  const ehHoje =
+    agora.getFullYear() === year &&
+    agora.getMonth() + 1 === month &&
+    agora.getDate() === day;
+
+  // Verifica se já passou do horário de fechamento hoje
+  if (ehHoje && agora.getHours() >= HORA_FECHAMENTO) {
+    return NextResponse.json({
+      available: [],
+      fechado: true,
+      mensagem: "A barbearia já encerrou o atendimento hoje.",
+    });
+  }
+
+  const prisma = getPrisma();
+
+  try {
+    // Verifica se a barbearia está aberta
+    const barbearia = await prisma.barbershop.findFirst({
+      select: { aberta: true },
+    });
+
+    if (!barbearia?.aberta) {
+      return NextResponse.json({
+        available: [],
+        fechado: true,
+        mensagem: "A barbearia está fechada no momento.",
+      });
+    }
+
+    // Busca horários já ocupados no dia
+    const inicioDia = new Date(year, month - 1, day, 0, 0, 0);
+    const fimDia = new Date(year, month - 1, day, 23, 59, 59);
+
+    const bookings = await prisma.booking.findMany({
+      where: { date: { gte: inicioDia, lte: fimDia } },
+      select: { date: true },
+    });
+
+    const ocupados = new Set(
+      bookings.map((b) => {
+        const d = new Date(b.date);
+        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      })
+    );
+
+    // Gera horários e filtra
+    const todos = gerarHorarios();
+
+    const available = todos.filter((horario) => {
+      // Remove horários ocupados
+      if (ocupados.has(horario)) return false;
+
+      // Se for hoje, remove horários que já passaram
+      if (ehHoje) {
+        const [h, m] = horario.split(":").map(Number);
+        const horaSlot = new Date(year, month - 1, day, h, m);
+        if (horaSlot <= agora) return false;
+      }
+
+      return true;
+    });
+
+    return NextResponse.json({ available, fechado: false });
+  } finally {
+    await prisma.$disconnect();
   }
 }

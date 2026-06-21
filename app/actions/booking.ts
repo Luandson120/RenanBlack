@@ -1,10 +1,12 @@
 "use server";
 
 import { PrismaClient } from "@/generated/prisma";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 // ─── Schema de validação ──────────────────────────────────────────
 
@@ -27,11 +29,8 @@ function parseDateTime(date: string, time: string): Date {
 }
 
 // ─── getServicesWithTakenTimes ────────────────────────────────────
-// Retorna os serviços da barbearia e os horários já ocupados
-// agrupados por data ("YYYY-MM-DD" → string[])
 
 export async function getServicesWithTakenTimes(barbershopId: string) {
-  // 1. Busca os serviços da barbearia
   const services = await prisma.barbershopService.findMany({
     where: { barbershopId },
     orderBy: { name: "asc" },
@@ -39,7 +38,6 @@ export async function getServicesWithTakenTimes(barbershopId: string) {
 
   const serviceIds = services.map((s) => s.id);
 
-  // 2. Busca bookings dos próximos 14 dias filtrando pelos serviceIds
   const now  = new Date();
   now.setHours(0, 0, 0, 0);
   const end  = new Date(now);
@@ -53,7 +51,6 @@ export async function getServicesWithTakenTimes(barbershopId: string) {
     select: { date: true },
   });
 
-  // 3. Agrupa horários por data
   const takenByDate: Record<string, string[]> = {};
   for (const b of bookings) {
     const d   = b.date;
@@ -76,7 +73,6 @@ export async function createBooking(input: unknown) {
   const { serviceId, date, time, name, phone, notes } = parsed.data;
   const bookingDate = parseDateTime(date, time);
 
-  // Verifica se o horário ainda está disponível
   const conflict = await prisma.booking.findFirst({
     where: { serviceId, date: bookingDate },
   });
@@ -84,7 +80,6 @@ export async function createBooking(input: unknown) {
     return { error: "Este horário acabou de ser reservado. Escolha outro." };
   }
 
-  // Busca ou cria usuário pelo telefone (fluxo sem auth)
   let user = await prisma.user.findFirst({
     where: { email: `${phone.replace(/\D/g, "")}@guest.local` },
   });
