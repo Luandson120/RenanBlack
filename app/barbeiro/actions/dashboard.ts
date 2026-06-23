@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { PrismaClient } from "../../../generated/prisma";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
@@ -20,6 +21,9 @@ export async function getDashboardData() {
   const trintaDiasAtras = new Date();
   trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
 
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
+
   try {
     const [
       agendamentosHoje,
@@ -27,6 +31,7 @@ export async function getDashboardData() {
       foraDoclube,
       statusBarbearia,
       lembretes,
+      agendamentosMes,
     ] = await Promise.all([
 
       // Agendamentos de hoje com usuário e serviço
@@ -95,12 +100,29 @@ export async function getDashboardData() {
           },
         },
       }),
+
+      // Agendamentos concluídos no mês (pra faturamento mensal)
+      prisma.booking.findMany({
+        where: {
+          date: { gte: inicioMes, lte: fimMes },
+          status: "concluido",
+        },
+        select: {
+          service: { select: { price: true } },
+        },
+      }),
     ]);
 
-    // Caixa do dia — soma dos serviços concluídos
+    // Caixa do dia — soma dos serviços concluídos hoje
     const caixaDoDia = agendamentosHoje
       .filter((b) => b.status === "concluido")
       .reduce((acc, b) => acc + Number(b.service.price), 0);
+
+    // Faturamento do mês — soma dos serviços concluídos no mês inteiro
+    const faturamentoMes = agendamentosMes.reduce(
+      (acc, b) => acc + Number(b.service.price),
+      0
+    );
 
     return {
       agendamentosHoje,
@@ -109,9 +131,38 @@ export async function getDashboardData() {
       lembretes,
       aberta: statusBarbearia?.aberta ?? true,
       caixaDoDia,
+      faturamentoMes,
       totalAgendamentos: agendamentosHoje.length,
       concluidosHoje: agendamentosHoje.filter((b) => b.status === "concluido").length,
     };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Confirma o atendimento (marca como concluído)
+export async function confirmarAgendamento(id: string) {
+  const prisma = getPrisma();
+  try {
+    await prisma.booking.update({
+      where: { id },
+      data: { status: "concluido" },
+    });
+    revalidatePath("/barbeiro/dashboard");
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Cancela o agendamento
+export async function cancelarAgendamento(id: string) {
+  const prisma = getPrisma();
+  try {
+    await prisma.booking.update({
+      where: { id },
+      data: { status: "cancelado" },
+    });
+    revalidatePath("/barbeiro/dashboard");
   } finally {
     await prisma.$disconnect();
   }

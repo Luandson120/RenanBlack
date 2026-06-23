@@ -130,7 +130,7 @@ const RenanBlack: React.FC = () => {
             {[
               { n: '2020', l: 'Fundação' },
               { n: '15k+', l: 'Clientes' },
-              { n: 'R$40', l: 'Preço Base' },
+              { n: 'R$25', l: 'Preço Base' },
               { n: '4.9', l: 'Google Aval.' }
             ].map((stat, i) => (
               <div key={i} style={{ background: 'var(--dark2)', padding: '25px 15px', borderRadius: '10px', border: '1px solid rgba(212,160,23,.08)', textAlign: 'center' }}>

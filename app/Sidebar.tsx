@@ -9,6 +9,7 @@ const links = [
   { href: "/clube", label: "Clube", icon: Handshake },
   { href: "/localizacao", label: "Localização", icon: MapPin },
   { href: "/sobre", label: "Sobre", icon: Info },
+  { href: "/barbeiro/login", label: "Area do Barbeiro", icon: Info },
 ];
 
 export default function Sidebar() {

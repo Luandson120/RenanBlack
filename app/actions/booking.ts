@@ -4,6 +4,7 @@ import { PrismaClient } from "@/generated/prisma";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { notificarAgendamento } from "@/app/barbeiro/actions/notificar";
 
 const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -38,9 +39,9 @@ export async function getServicesWithTakenTimes(barbershopId: string) {
 
   const serviceIds = services.map((s) => s.id);
 
-  const now  = new Date();
+  const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const end  = new Date(now);
+  const end = new Date(now);
   end.setDate(now.getDate() + 14);
 
   const bookings = await prisma.booking.findMany({
@@ -73,6 +74,7 @@ export async function createBooking(input: unknown) {
   const { serviceId, date, time, name, phone, notes } = parsed.data;
   const bookingDate = parseDateTime(date, time);
 
+  // Verifica conflito de horário
   const conflict = await prisma.booking.findFirst({
     where: { serviceId, date: bookingDate },
   });
@@ -80,6 +82,17 @@ export async function createBooking(input: unknown) {
     return { error: "Este horário acabou de ser reservado. Escolha outro." };
   }
 
+  // Busca o serviço para pegar nome e preço
+  const service = await prisma.barbershopService.findUnique({
+    where: { id: serviceId },
+    select: { name: true, price: true },
+  });
+
+  if (!service) {
+    return { error: "Serviço não encontrado." };
+  }
+
+  // Busca ou cria usuário pelo telefone
   let user = await prisma.user.findFirst({
     where: { email: `${phone.replace(/\D/g, "")}@guest.local` },
   });
@@ -93,6 +106,7 @@ export async function createBooking(input: unknown) {
     });
   }
 
+  // Cria o agendamento
   await prisma.booking.create({
     data: {
       userId:    user.id,
@@ -100,6 +114,20 @@ export async function createBooking(input: unknown) {
       date:      bookingDate,
     },
   });
+
+  // Envia notificações WhatsApp (não bloqueia o retorno em caso de erro)
+  try {
+    await notificarAgendamento({
+      clientName:  name,
+      clientPhone: phone,
+      serviceName: service.name,
+      date,
+      time,
+      price: Number(service.price).toFixed(2).replace(".", ","),
+    });
+  } catch (err) {
+    console.error("Erro ao enviar WhatsApp:", err);
+  }
 
   revalidatePath("/agendamento");
   return { success: true };

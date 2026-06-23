@@ -5,8 +5,15 @@ const headers = {
   Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
 };
 
-// Envia mensagem de texto simples
+// ─── Envio base ───────────────────────────────────────────────────
+
 export async function sendWhatsAppMessage(to: string, message: string) {
+  console.log("📤 Enviando WhatsApp para:", to);
+  console.log("🔗 URL:", WHATSAPP_URL);
+  console.log("🔑 Token:", process.env.WHATSAPP_TOKEN ? "✅ definido" : "❌ não definido");
+  console.log("📱 Phone ID:", process.env.WHATSAPP_PHONE_ID ?? "❌ não definido");
+  console.log("🌐 API Version:", process.env.WHATSAPP_API_VERSION ?? "❌ não definido");
+
   const res = await fetch(WHATSAPP_URL, {
     method: "POST",
     headers,
@@ -18,15 +25,20 @@ export async function sendWhatsAppMessage(to: string, message: string) {
     }),
   });
 
+  const data = await res.json(); // ← lê uma única vez
+
+  console.log("📬 WhatsApp status:", res.status);
+  console.log("📬 WhatsApp response:", JSON.stringify(data, null, 2));
+
   if (!res.ok) {
-    const error = await res.json();
-    console.error("Erro WhatsApp:", error);
+    console.error("❌ Erro WhatsApp:", JSON.stringify(data, null, 2));
   }
 
-  return res.json();
+  return data;
 }
 
-// Mensagem para o CLIENTE após agendamento
+// ─── Confirmação de agendamento para o CLIENTE ────────────────────
+
 export function buildClientMessage({
   clientName,
   serviceName,
@@ -63,7 +75,8 @@ ${barbershopAddress}
 Até logo! 💈`;
 }
 
-// Mensagem para o BARBEIRO após agendamento
+// ─── Notificação de agendamento para o BARBEIRO ───────────────────
+
 export function buildBarberMessage({
   clientName,
   clientPhone,
@@ -89,23 +102,53 @@ export function buildBarberMessage({
 💰 *Valor:* R$ ${price}`;
 }
 
-// Relatório diário para o BARBEIRO
+// ─── Lembrete 30 dias sem corte para o CLIENTE ───────────────────
+
+export function buildLembrete30Dias({
+  clientName,
+  diasSemCorte,
+  barbershopName,
+  barbershopPhone,
+}: {
+  clientName: string;
+  diasSemCorte: number;
+  barbershopName: string;
+  barbershopPhone: string;
+}): string {
+  return `✂️ *Ei, ${clientName}! Tá na hora do corte!*
+
+Faz *${diasSemCorte} dias* que você não aparece por aqui. Sentimos sua falta! 😄
+
+Agende agora pelo nosso app e garanta seu horário.
+
+📍 *${barbershopName}*
+📱 ${barbershopPhone}
+
+_Te esperamos! 💈_`;
+}
+
+// ─── Relatório diário para o BARBEIRO ────────────────────────────
+
 export function buildDailyReport({
   date,
   totalBookings,
   totalRevenue,
   subscribers,
   bookings,
+  barbershopName,
 }: {
   date: string;
   totalBookings: number;
   totalRevenue: number;
   subscribers: string[];
   bookings: { clientName: string; service: string; time: string; price: string }[];
+  barbershopName?: string;
 }): string {
-  const bookingList = bookings
-    .map((b, i) => `${i + 1}. ${b.clientName} — ${b.service} às ${b.time} (R$ ${b.price})`)
-    .join("\n");
+  const bookingList = bookings.length > 0
+    ? bookings
+        .map((b, i) => `${i + 1}. ${b.clientName} — ${b.service} às ${b.time} (R$ ${b.price})`)
+        .join("\n")
+    : "Nenhum agendamento hoje.";
 
   const subscriberList = subscribers.length > 0
     ? subscribers.map((s, i) => `${i + 1}. ${s}`).join("\n")
@@ -124,5 +167,5 @@ ${bookingList}
 ⭐ *Assinantes do dia:* ${subscribers.length}
 ${subscriberList}
 
-_Relatório gerado automaticamente pela Barbearia Renan Black_ 💈`;
+_Relatório gerado automaticamente — ${barbershopName ?? "Renan Black Barber"} 💈_`;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Booking {
@@ -23,6 +24,7 @@ interface DashboardData {
   lembretes: UserComBooking[];
   aberta: boolean;
   caixaDoDia: number;
+  faturamentoMes?: number;
   totalAgendamentos: number;
   concluidosHoje: number;
 }
@@ -68,17 +70,115 @@ function StatusBadge({ status }: { status: string }) {
     return <span className="text-[11px] px-2 py-1 rounded-full bg-green-950 text-green-400 border border-green-900">Concluído</span>;
   if (status === "andamento")
     return <span className="text-[11px] px-2 py-1 rounded-full bg-yellow-950 text-yellow-400 border border-yellow-900">Em andamento</span>;
+  if (status === "cancelado")
+    return <span className="text-[11px] px-2 py-1 rounded-full bg-red-950 text-red-400 border border-red-900">Cancelado</span>;
   return <span className="text-[11px] px-2 py-1 rounded-full bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]">Aguardando</span>;
 }
 
-export default function DashboardClient({ data }: { data: DashboardData }) {
+function IconeCheck() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function IconeX() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function AcoesAgendamento({
+  status,
+  carregando,
+  onConfirmar,
+  onCancelar,
+}: {
+  status: string;
+  carregando: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}) {
+  if (status === "concluido" || status === "cancelado") return null;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={onConfirmar}
+        disabled={carregando}
+        title="Confirmar atendimento"
+        className="w-6 h-6 flex items-center justify-center rounded-full border border-green-900 bg-green-950 text-green-400 hover:bg-green-900 transition-colors disabled:opacity-40"
+      >
+        <IconeCheck />
+      </button>
+      <button
+        onClick={onCancelar}
+        disabled={carregando}
+        title="Cancelar agendamento"
+        className="w-6 h-6 flex items-center justify-center rounded-full border border-red-900 bg-red-950 text-red-400 hover:bg-red-900 transition-colors disabled:opacity-40"
+      >
+        <IconeX />
+      </button>
+    </div>
+  );
+}
+
+export default function DashboardClient({
+  data,
+  onConfirmar,
+  onCancelar,
+}: {
+  data: DashboardData;
+  onConfirmar?: (id: string) => Promise<void> | void;
+  onCancelar?: (id: string) => Promise<void> | void;
+}) {
   const router = useRouter();
+
+  const [statusLocal, setStatusLocal] = useState<Record<string, string>>({});
+  const [carregando, setCarregando] = useState<string | null>(null);
+
+  function statusAtual(a: Booking) {
+    return statusLocal[a.id] ?? a.status;
+  }
+
+  async function handleConfirmar(a: Booking) {
+    setCarregando(a.id);
+    setStatusLocal((prev) => ({ ...prev, [a.id]: "concluido" }));
+    try {
+      await onConfirmar?.(a.id);
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      setStatusLocal((prev) => ({ ...prev, [a.id]: a.status }));
+    } finally {
+      setCarregando(null);
+    }
+  }
+
+  async function handleCancelar(a: Booking) {
+    setCarregando(a.id);
+    setStatusLocal((prev) => ({ ...prev, [a.id]: "cancelado" }));
+    try {
+      await onCancelar?.(a.id);
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      setStatusLocal((prev) => ({ ...prev, [a.id]: a.status }));
+    } finally {
+      setCarregando(null);
+    }
+  }
 
   const hoje = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+
+  const nomeMes = new Date().toLocaleDateString("pt-BR", { month: "long" });
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] px-4 py-6 max-w-3xl mx-auto flex flex-col gap-5">
@@ -94,17 +194,36 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
             <p className="text-[#555] text-xs capitalize">{hoje}</p>
           </div>
         </div>
-        <button
-          onClick={() => router.push("/barbeiro/status")}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
-            data.aberta
-              ? "bg-[#0d1f0d] border-[#2a5a2a] text-green-400"
-              : "bg-[#1f0d0d] border-[#5a2a2a] text-red-400"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${data.aberta ? "bg-green-400" : "bg-red-400"}`} />
-          {data.aberta ? "Barbearia aberta" : "Barbearia fechada"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push("/barbeiro/servicos")}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-[#2a2a2a] text-[#888] hover:text-[#e0e0e0] hover:border-[#444] transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
+            </svg>
+            Serviços
+          </button>
+          <button
+            onClick={() => router.push("/barbeiro/status")}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              data.aberta
+                ? "bg-[#0d1f0d] border-[#2a5a2a] text-green-400"
+                : "bg-[#1f0d0d] border-[#5a2a2a] text-red-400"
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${data.aberta ? "bg-green-400" : "bg-red-400"}`} />
+            {data.aberta ? "Barbearia aberta" : "Barbearia fechada"}
+          </button>
+        </div>
+      </div>
+
+      {/* Faturamento do mês */}
+      <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl px-5 py-4 flex items-center justify-between">
+        <span className="text-sm text-[#888] capitalize">Faturamento de {nomeMes}</span>
+        <span className="text-xl font-medium text-[#C9A84C]">
+          {(data.faturamentoMes ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
       </div>
 
       {/* Métricas */}
@@ -167,7 +286,17 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
                     <td className="py-3 pr-3 text-[#e0e0e0] text-xs">
                       {Number(a.service.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </td>
-                    <td className="py-3"><StatusBadge status={a.status} /></td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={statusAtual(a)} />
+                        <AcoesAgendamento
+                          status={statusAtual(a)}
+                          carregando={carregando === a.id}
+                          onConfirmar={() => handleConfirmar(a)}
+                          onCancelar={() => handleCancelar(a)}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
