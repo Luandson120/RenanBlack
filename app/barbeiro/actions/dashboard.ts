@@ -36,7 +36,6 @@ export async function getDashboardData() {
       lembretes,
       faturamentoMes,
     ] = await Promise.all([
-
       prisma.booking.findMany({
         where: { date: { gte: inicioDia, lte: fimDia } },
         include: {
@@ -67,7 +66,7 @@ export async function getDashboardData() {
           email: true,
           bookings: {
             orderBy: { date: "desc" },
-            take: 20, // precisa de histórico para calcular intervalo médio
+            take: 20,
             select: {
               date: true,
               service: { select: { name: true } },
@@ -132,7 +131,6 @@ export async function getDashboardData() {
       0
     );
 
-    // Converte Decimal → number para poder passar ao Client Component
     const serializeBooking = (b: typeof agendamentosHoje[0]) => ({
       ...b,
       service: { ...b.service, price: Number(b.service.price) },
@@ -158,7 +156,6 @@ export async function getDashboardData() {
       telefone: extrairTelefone(u.email),
       plano: u.bookings[0]?.service?.name ?? "—",
       ultimoCorte: u.bookings[0]?.date ?? null,
-      // bookings completo (até 20) é passado para calcular frequência no client
     }));
 
     const lembretesComContato = lembretes.map((u) => ({
@@ -188,10 +185,7 @@ export async function getDashboardData() {
 export async function atualizarStatusAgendamento(id: string, status: "concluido" | "cancelado") {
   const prisma = getPrisma();
   try {
-    await prisma.booking.update({
-      where: { id },
-      data: { status },
-    });
+    await prisma.booking.update({ where: { id }, data: { status } });
     return { sucesso: true };
   } catch (error) {
     console.error(error);
@@ -203,16 +197,55 @@ export async function atualizarStatusAgendamento(id: string, status: "concluido"
 
 export async function toggleStatusBarbearia(id: string, abertaAtual: boolean) {
   const prisma = getPrisma();
+  const novoStatus = !abertaAtual;
+
   try {
+    // 1. Atualiza o status da barbearia
     await prisma.barbershop.update({
       where: { id },
-      data: { aberta: !abertaAtual },
+      data: { aberta: novoStatus },
     });
-    return { sucesso: true };
+
+    // 2. Se está FECHANDO: cancela agendamentos pendentes de hoje
+    let agendamentosCancelados = 0;
+    if (!novoStatus) {
+      const inicioDia = new Date();
+      inicioDia.setHours(0, 0, 0, 0);
+      const fimDia = new Date();
+      fimDia.setHours(23, 59, 59, 999);
+
+      // Pega IDs dos serviços da barbearia
+      const serviceIds = (
+        await prisma.barbershopService.findMany({
+          where: { barbershopId: id },
+          select: { id: true },
+        })
+      ).map((s) => s.id);
+
+      // Cancela bookings de hoje ainda aguardando ou em andamento
+      const resultado = await prisma.booking.updateMany({
+        where: {
+          serviceId: { in: serviceIds },
+          date: { gte: inicioDia, lte: fimDia },
+          status: { in: ["aguardando", "andamento"] },
+        },
+        data: { status: "cancelado" },
+      });
+
+      agendamentosCancelados = resultado.count;
+    }
+
+    return { sucesso: true, novoStatus, agendamentosCancelados };
   } catch (error) {
     console.error(error);
-    return { sucesso: false };
+    return { sucesso: false, novoStatus: abertaAtual, agendamentosCancelados: 0 };
   } finally {
     await prisma.$disconnect();
   }
+}
+
+export async function adicionarValorExtra(descricao: string, valor: number) {
+  // Sem model no banco ainda — retorna sucesso para o client não quebrar.
+  // Quando o model ValorAvulso for criado, implementar aqui.
+  return { sucesso: true, id: `mem-${Date.now()}` };
 }

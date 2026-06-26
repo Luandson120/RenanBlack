@@ -265,12 +265,14 @@ export default function DashboardClient({
   data,
   onConfirmar,
   onCancelar,
+  onToggleStatus,
   onAdicionarValorExtra,
   onRemoverValorExtra,
 }: {
   data: DashboardData;
   onConfirmar?: (id: string) => Promise<void> | void;
   onCancelar?: (id: string) => Promise<void> | void;
+  onToggleStatus?: (abertaAtual: boolean) => Promise<void> | void;
   onAdicionarValorExtra?: (descricao: string, valor: number) => Promise<void> | void;
   onRemoverValorExtra?: (id: string) => Promise<void> | void;
 }) {
@@ -285,6 +287,8 @@ export default function DashboardClient({
   const [valorExtraInput, setValorExtraInput] = useState("");
   const [enviandoExtra, setEnviandoExtra] = useState(false);
   const [fechandoBarbearia, setFechandoBarbearia] = useState(false);
+  // Estado local do status da barbearia para refletir mudança imediatamente
+  const [abertaLocal, setAbertaLocal] = useState(data.aberta);
 
   // ── visitas agrupadas por telefone/nome ──
   const visitasPorChave = calcularVisitasPorChave(data.assinantes);
@@ -380,19 +384,17 @@ export default function DashboardClient({
     }
   }
 
-  // Fecha a barbearia E cancela todos os agendamentos pendentes/aguardando de hoje
-  async function handleFecharBarbearia() {
+  // Alterna o status da barbearia e, ao fechar, bloqueia horários de hoje
+  async function handleToggleBarbearia() {
     if (fechandoBarbearia) return;
     setFechandoBarbearia(true);
+    const novoStatus = !abertaLocal;
+    setAbertaLocal(novoStatus); // otimista
     try {
-      await fetch("/api/barbeiro/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aberta: false, bloquearHoje: true }),
-      });
+      await onToggleStatus?.(abertaLocal);
       router.refresh();
     } catch {
-      // falha silenciosa — usuário pode tentar de novo
+      setAbertaLocal(abertaLocal); // reverte se falhou
     } finally {
       setFechandoBarbearia(false);
     }
@@ -426,33 +428,28 @@ export default function DashboardClient({
             Serviços
           </button>
           {/* Botão de status com fechar integrado */}
-          {data.aberta ? (
-            <button
-              onClick={handleFecharBarbearia}
-              disabled={fechandoBarbearia}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border bg-[#0d1f0d] border-[#2a5a2a] text-green-400 hover:bg-[#1f0d0d] hover:border-[#5a2a2a] hover:text-red-400 transition-colors disabled:opacity-50 group"
-              title="Clique para fechar a barbearia e bloquear horários de hoje"
-            >
-              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-green-400 group-hover:bg-red-400 transition-colors" />
-              <span className="hidden xs:inline">
-                {fechandoBarbearia ? "Fechando..." : "Aberta"}
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={() => router.push("/barbeiro/status")}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border bg-[#1f0d0d] border-[#5a2a2a] text-red-400 hover:bg-[#0d1f0d] hover:border-[#2a5a2a] hover:text-green-400 transition-colors"
-              title="Clique para abrir a barbearia"
-            >
-              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-red-400" />
-              <span className="hidden xs:inline">Fechada</span>
-            </button>
-          )}
+          <button
+            onClick={handleToggleBarbearia}
+            disabled={fechandoBarbearia}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors disabled:opacity-50 ${
+              abertaLocal
+                ? "bg-[#0d1f0d] border-[#2a5a2a] text-green-400 hover:bg-[#1f0d0d] hover:border-[#5a2a2a] hover:text-red-400"
+                : "bg-[#1f0d0d] border-[#5a2a2a] text-red-400 hover:bg-[#0d1f0d] hover:border-[#2a5a2a] hover:text-green-400"
+            }`}
+            title={abertaLocal ? "Clique para fechar e bloquear horários de hoje" : "Clique para abrir a barbearia"}
+          >
+            <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${abertaLocal ? "bg-green-400" : "bg-red-400"}`} />
+            <span className="hidden xs:inline">
+              {fechandoBarbearia
+                ? abertaLocal ? "Abrindo..." : "Fechando..."
+                : abertaLocal ? "Aberta" : "Fechada"}
+            </span>
+          </button>
         </div>
       </div>
 
       {/* Aviso quando fechada */}
-      {!data.aberta && (
+      {!abertaLocal && (
         <div className="bg-[#1f0d0d] border border-[#5a2a2a] rounded-xl px-4 py-3 flex items-center gap-3">
           <svg className="w-4 h-4 text-red-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />

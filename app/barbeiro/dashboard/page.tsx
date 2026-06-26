@@ -1,4 +1,11 @@
-import { getDashboardData, atualizarStatusAgendamento, toggleStatusBarbearia } from "../actions/dashboard";
+// src/app/barbeiro/dashboard/page.tsx
+
+import {
+  getDashboardData,
+  atualizarStatusAgendamento,
+  toggleStatusBarbearia,
+  adicionarValorExtra,
+} from "../actions/dashboard";
 import DashboardClient from "./DashboardClient";
 
 export default async function BarbeiroDashboardPage() {
@@ -14,10 +21,16 @@ export default async function BarbeiroDashboardPage() {
     await atualizarStatusAgendamento(id, "cancelado");
   }
 
-  async function onToggleStatus() {
+  // Recebe o status ATUAL vindo do client (para não depender de data.aberta stale)
+  async function onToggleStatus(abertaAtual: boolean) {
     "use server";
     if (!data.barbershopId) return;
-    await toggleStatusBarbearia(data.barbershopId, data.aberta);
+    await toggleStatusBarbearia(data.barbershopId, abertaAtual);
+  }
+
+  async function onAdicionarValorExtra(descricao: string, valor: number) {
+    "use server";
+    await adicionarValorExtra(descricao, valor);
   }
 
   return (
@@ -26,6 +39,7 @@ export default async function BarbeiroDashboardPage() {
       onConfirmar={onConfirmar}
       onCancelar={onCancelar}
       onToggleStatus={onToggleStatus}
+      onAdicionarValorExtra={onAdicionarValorExtra}
     />
   );
 }
