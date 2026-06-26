@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { PrismaClient } from "../../../generated/prisma";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
@@ -18,55 +17,72 @@ export async function getDashboardData() {
   const fimDia = new Date(hoje);
   fimDia.setHours(23, 59, 59, 999);
 
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+
+  const proximos30Dias = new Date(hoje);
+  proximos30Dias.setDate(proximos30Dias.getDate() + 30);
+
   const trintaDiasAtras = new Date();
   trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-
-  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
-  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
 
   try {
     const [
       agendamentosHoje,
+      agendamentosFuturos,
       assinantes,
       foraDoclube,
       statusBarbearia,
       lembretes,
-      agendamentosMes,
+      faturamentoMes,
     ] = await Promise.all([
 
-      // Agendamentos de hoje com usuário e serviço
       prisma.booking.findMany({
-        where: {
-          date: { gte: inicioDia, lte: fimDia },
-        },
+        where: { date: { gte: inicioDia, lte: fimDia } },
         include: {
-          user: { select: { name: true } },
+          user: { select: { name: true, email: true } },
           service: { select: { name: true, price: true } },
         },
         orderBy: { date: "asc" },
       }),
 
-      // Assinantes ativos
+      prisma.booking.findMany({
+        where: {
+          date: { gt: fimDia, lte: proximos30Dias },
+          status: { not: "cancelado" },
+        },
+        include: {
+          user: { select: { name: true, email: true } },
+          service: { select: { name: true, price: true } },
+        },
+        orderBy: { date: "asc" },
+        take: 50,
+      }),
+
       prisma.user.findMany({
         where: { assinante: true },
         select: {
           id: true,
           name: true,
+          email: true,
           bookings: {
             orderBy: { date: "desc" },
-            take: 1,
-            select: { date: true, service: { select: { name: true } } },
+            take: 20, // precisa de histórico para calcular intervalo médio
+            select: {
+              date: true,
+              service: { select: { name: true } },
+            },
           },
         },
         orderBy: { createdAt: "desc" },
       }),
 
-      // Fora do clube (não assinantes)
       prisma.user.findMany({
         where: { assinante: false },
         select: {
           id: true,
           name: true,
+          email: true,
           bookings: {
             orderBy: { date: "desc" },
             take: 1,
@@ -76,23 +92,20 @@ export async function getDashboardData() {
         orderBy: { createdAt: "desc" },
       }),
 
-      // Status da barbearia
       prisma.barbershop.findFirst({
-        select: { aberta: true },
+        select: { id: true, aberta: true },
       }),
 
-      // Clientes sem corte há mais de 30 dias
       prisma.user.findMany({
         where: {
           bookings: {
-            none: {
-              date: { gte: trintaDiasAtras },
-            },
+            none: { date: { gte: trintaDiasAtras } },
           },
         },
         select: {
           id: true,
           name: true,
+          email: true,
           bookings: {
             orderBy: { date: "desc" },
             take: 1,
@@ -101,37 +114,69 @@ export async function getDashboardData() {
         },
       }),
 
-      // Agendamentos concluídos no mês (pra faturamento mensal)
       prisma.booking.findMany({
         where: {
           date: { gte: inicioMes, lte: fimMes },
           status: "concluido",
         },
-        select: {
-          service: { select: { price: true } },
-        },
+        select: { service: { select: { price: true } } },
       }),
     ]);
 
-    // Caixa do dia — soma dos serviços concluídos hoje
     const caixaDoDia = agendamentosHoje
       .filter((b) => b.status === "concluido")
       .reduce((acc, b) => acc + Number(b.service.price), 0);
 
-    // Faturamento do mês — soma dos serviços concluídos no mês inteiro
-    const faturamentoMes = agendamentosMes.reduce(
+    const faturamentoMesTotal = faturamentoMes.reduce(
       (acc, b) => acc + Number(b.service.price),
       0
     );
 
+    // Converte Decimal → number para poder passar ao Client Component
+    const serializeBooking = (b: typeof agendamentosHoje[0]) => ({
+      ...b,
+      service: { ...b.service, price: Number(b.service.price) },
+    });
+
+    const serializeFuturo = (b: typeof agendamentosFuturos[0]) => ({
+      ...b,
+      service: { ...b.service, price: Number(b.service.price) },
+    });
+
+    function extrairTelefone(email: string): string | null {
+      if (!email.endsWith("@guest.local")) return null;
+      const digits = email.replace("@guest.local", "");
+      if (digits.length < 10) return null;
+      const ddd = digits.slice(0, 2);
+      const parte1 = digits.slice(2, digits.length - 4);
+      const parte2 = digits.slice(-4);
+      return `(${ddd}) ${parte1}-${parte2}`;
+    }
+
+    const assinantesComContato = assinantes.map((u) => ({
+      ...u,
+      telefone: extrairTelefone(u.email),
+      plano: u.bookings[0]?.service?.name ?? "—",
+      ultimoCorte: u.bookings[0]?.date ?? null,
+      // bookings completo (até 20) é passado para calcular frequência no client
+    }));
+
+    const lembretesComContato = lembretes.map((u) => ({
+      ...u,
+      telefone: extrairTelefone(u.email),
+      ultimoCorte: u.bookings[0]?.date ?? null,
+    }));
+
     return {
-      agendamentosHoje,
-      assinantes,
+      agendamentosHoje: agendamentosHoje.map(serializeBooking),
+      agendamentosFuturos: agendamentosFuturos.map(serializeFuturo),
+      assinantes: assinantesComContato,
       foraDoclube,
-      lembretes,
+      lembretes: lembretesComContato,
       aberta: statusBarbearia?.aberta ?? true,
+      barbershopId: statusBarbearia?.id ?? null,
       caixaDoDia,
-      faturamentoMes,
+      faturamentoMes: faturamentoMesTotal,
       totalAgendamentos: agendamentosHoje.length,
       concluidosHoje: agendamentosHoje.filter((b) => b.status === "concluido").length,
     };
@@ -140,29 +185,33 @@ export async function getDashboardData() {
   }
 }
 
-// Confirma o atendimento (marca como concluído)
-export async function confirmarAgendamento(id: string) {
+export async function atualizarStatusAgendamento(id: string, status: "concluido" | "cancelado") {
   const prisma = getPrisma();
   try {
     await prisma.booking.update({
       where: { id },
-      data: { status: "concluido" },
+      data: { status },
     });
-    revalidatePath("/barbeiro/dashboard");
+    return { sucesso: true };
+  } catch (error) {
+    console.error(error);
+    return { sucesso: false };
   } finally {
     await prisma.$disconnect();
   }
 }
 
-// Cancela o agendamento
-export async function cancelarAgendamento(id: string) {
+export async function toggleStatusBarbearia(id: string, abertaAtual: boolean) {
   const prisma = getPrisma();
   try {
-    await prisma.booking.update({
+    await prisma.barbershop.update({
       where: { id },
-      data: { status: "cancelado" },
+      data: { aberta: !abertaAtual },
     });
-    revalidatePath("/barbeiro/dashboard");
+    return { sucesso: true };
+  } catch (error) {
+    console.error(error);
+    return { sucesso: false };
   } finally {
     await prisma.$disconnect();
   }

@@ -21,12 +21,18 @@ const BookingSchema = z.object({
   notes:        z.string().optional(),
 });
 
-// ─── Converte "DD/MM/YYYY" + "HH:MM" → DateTime UTC ──────────────
+// ─── Converte "DD/MM/YYYY" + "HH:MM" → DateTime ──────────────────
 
 function parseDateTime(date: string, time: string): Date {
   const [day, month, year] = date.split("/").map(Number);
   const [hours, minutes]   = time.split(":").map(Number);
   return new Date(year, month - 1, day, hours, minutes, 0, 0);
+}
+
+// ─── Verifica se o serviço é uma assinatura ───────────────────────
+
+function ehAssinatura(nomeServico: string): boolean {
+  return nomeServico.toLowerCase().includes("assinatura");
 }
 
 // ─── getServicesWithTakenTimes ────────────────────────────────────
@@ -82,27 +88,39 @@ export async function createBooking(input: unknown) {
     return { error: "Este horário acabou de ser reservado. Escolha outro." };
   }
 
-  // Busca o serviço para pegar nome e preço
+  // Busca o serviço
   const service = await prisma.barbershopService.findUnique({
     where: { id: serviceId },
     select: { name: true, price: true },
   });
-
   if (!service) {
     return { error: "Serviço não encontrado." };
   }
 
+  // Verifica se é assinatura
+  const isAssinatura = ehAssinatura(service.name);
+
   // Busca ou cria usuário pelo telefone
+  const emailGuest = `${phone.replace(/\D/g, "")}@guest.local`;
+
   let user = await prisma.user.findFirst({
-    where: { email: `${phone.replace(/\D/g, "")}@guest.local` },
+    where: { email: emailGuest },
   });
 
   if (!user) {
     user = await prisma.user.create({
       data: {
         name,
-        email: `${phone.replace(/\D/g, "")}@guest.local`,
+        email: emailGuest,
+        // Se o primeiro serviço já for assinatura, já entra como assinante
+        assinante: isAssinatura,
       },
+    });
+  } else if (isAssinatura && !user.assinante) {
+    // Usuário existente que agora assinou — promove para assinante
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { assinante: true },
     });
   }
 
@@ -115,7 +133,7 @@ export async function createBooking(input: unknown) {
     },
   });
 
-  // Envia notificações WhatsApp (não bloqueia o retorno em caso de erro)
+  // Envia notificações WhatsApp
   try {
     await notificarAgendamento({
       clientName:  name,
@@ -130,5 +148,8 @@ export async function createBooking(input: unknown) {
   }
 
   revalidatePath("/agendamento");
-  return { success: true };
+  return {
+    success: true,
+    novoAssinante: isAssinatura,
+  };
 }

@@ -8,17 +8,18 @@ interface Plano {
 
 const planos: Plano[] = [
   {
-    nome: "Club Renanblack Cabelo e Barba",
+    nome: "Club Cabelo e Barba",
     preco: 72.5,
     link: "https://www.asaas.com/c/bdy0zudgudku0j3j",
   },
   {
-    nome: "ClubBlackMaster",
+    nome: "Club Cabelo",
     preco: 52.53,
     link: "https://www.asaas.com/c/6v4jrwp1q3x1qw7n",
   },
+
   {
-    nome: "Assinatura Black Master",
+    nome: "Club Barba",
     preco: 42.5,
     link: "https://www.asaas.com/c/py6kgjxnx6lz13nq",
   },
