@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createBooking } from "@/app/actions/booking";
 
 type Service = { id: string; name: string; price: number; duration?: number };
@@ -26,12 +27,24 @@ function formatDateFull(dateKey: string) {
   return `${WEEKDAYS_FULL[d.getDay()]}, ${day} de ${MONTHS[month - 1]} de ${year}`;
 }
 
+// remove acento e padroniza pra comparar "Corte Degradê (Fade)" com variações
+function normalize(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
 export default function BookingPage({ barbershopId, barbershopName = "Barbearia", barbershopAddress = "", services }: Props) {
   const today = new Date();
   today.setHours(0,0,0,0);
+  const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<"servico"|"data"|"dados">("servico");
   const [serviceId, setServiceId] = useState("");
+  const [autoSelected, setAutoSelected] = useState(false);
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [date, setDate] = useState("");
@@ -45,6 +58,24 @@ export default function BookingPage({ barbershopId, barbershopName = "Barbearia"
   const [loadingTimes, setLoadingTimes] = useState(false);
 
   const selectedService = services.find(s => s.id === serviceId);
+
+  // pré-seleciona o serviço quando vem de /agendamento?servico=Nome
+  useEffect(() => {
+    if (autoSelected || services.length === 0) return;
+    const servicoParam = searchParams.get("servico");
+    if (!servicoParam) return;
+
+    const target = normalize(servicoParam);
+    const match =
+      services.find(s => normalize(s.name) === target) ??
+      services.find(s => normalize(s.name).includes(target) || target.includes(normalize(s.name)));
+
+    if (match) {
+      setServiceId(match.id);
+      setTab("data");
+    }
+    setAutoSelected(true);
+  }, [searchParams, services, autoSelected]);
 
   useEffect(() => {
     if (!date) return;
@@ -145,6 +176,21 @@ export default function BookingPage({ barbershopId, barbershopName = "Barbearia"
 
   return (
     <div className="max-w-md mx-auto p-4">
+      {/* Faixa de serviço pré-selecionado (vindo da home) */}
+      {selectedService && (
+        <div className="flex items-center justify-between bg-zinc-900 border border-gray-700 rounded-lg px-3 py-2 mb-4">
+          <div>
+            <p className="text-xs text-gray-400">Serviço selecionado</p>
+            <p className="text-sm font-medium text-white">
+              {selectedService.name} · R$ {selectedService.price.toFixed(2).replace(".", ",")}
+            </p>
+          </div>
+          <button onClick={() => setTab("servico")} className="text-xs text-yellow-500 hover:underline">
+            Trocar
+          </button>
+        </div>
+      )}
+
       {/* Abas */}
       <div className="flex border-b mb-4">
         {(["servico","data","dados"] as const).map((t) => (

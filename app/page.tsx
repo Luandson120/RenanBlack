@@ -100,32 +100,42 @@ const RenanBlack: React.FC = () => {
         }
         .tab-button.active { color: var(--gold); border-bottom-color: var(--gold); }
 
-        .price-line {
+        /* Coluna que agrupa os cards de serviço */
+        .price-col {
           display: flex;
-          justify-content: space-between;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        /* Card de serviço (substitui a antiga .price-line) */
+        .price-card {
+          display: flex;
           align-items: center;
-          padding: 18px 8px;
-          border-bottom: 1px solid rgba(245,240,232,0.04);
+          justify-content: space-between;
+          padding: 18px 20px;
+          border: 1px solid rgba(245, 240, 232, 0.12);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.02);
           text-decoration: none;
           color: inherit;
-          border-radius: 6px;
-          transition: background 0.2s;
           cursor: pointer;
+          transition: border-color 0.2s ease, transform 0.15s ease, background 0.2s ease;
         }
-        .price-line:hover {
-          background: rgba(212,160,23,0.06);
+        .price-card:hover {
+          border-color: var(--gold);
+          background: rgba(212, 160, 23, 0.06);
+          transform: translateY(-2px);
         }
-        .price-line:hover .agendar-label {
-          opacity: 1;
+        .price-card-name {
+          font-size: 15px;
+          font-weight: 500;
+          color: var(--cream);
         }
-        .agendar-label {
-          font-size: 11px;
+        .price-card-price {
+          font-family: monospace;
+          font-weight: 700;
+          font-size: 16px;
           color: var(--gold);
-          opacity: 0;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          transition: opacity 0.2s;
-          white-space: nowrap;
         }
       `}</style>
 
@@ -171,7 +181,7 @@ const RenanBlack: React.FC = () => {
           <div className="fade-up">
             <div style={{ textAlign: 'center', marginBottom: '50px' }}>
               <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(45px, 8vw, 70px)', letterSpacing: '2px' }}>
-                Tabela de <span style={{ color: 'var(--gold)' }}>Serviços</span>
+                Tabela de <span style={{ color: 'var(--gold)' }}>Agendar Agora</span>
               </h2>
               <div style={{ width: '60px', height: '3px', background: 'var(--gold)', margin: '15px auto' }}></div>
               <p style={{ color: 'var(--cream-dim)', fontSize: '13px', marginTop: '10px' }}>
@@ -194,12 +204,12 @@ const RenanBlack: React.FC = () => {
             <div className="price-grid">
               {activeTab === 'cortes' && (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Corte Degradê (Fade)" price="R$ 25" />
                     <PriceLine name="Corte Tesoura" price="R$ 20" />
                     <PriceLine name="Barba Terapêutica" price="R$ 20" />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Pezinho / Acabamento" price="R$ 25" />
                     <PriceLine name="Sobrancelha Navalha" price="R$ 05" />
                     <PriceLine name="Corte Kids" price="R$ 45" />
@@ -209,11 +219,11 @@ const RenanBlack: React.FC = () => {
 
               {activeTab === 'coloracao' && (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Platinado / Nevou" price="R$ 80" />
                     <PriceLine name="Luzes / Reflexo" price="R$ 60" />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Pigmentação de Barba" price="R$ 15" />
                     <PriceLine name="Coloração Simples" price="R$ 60" />
                   </div>
@@ -222,10 +232,10 @@ const RenanBlack: React.FC = () => {
 
               {activeTab === 'tratamentos' && (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Limpeza de Pele" price="R$ 25" />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="price-col">
                     <PriceLine name="Massagem Capilar" price="R$ 20" />
                     <PriceLine name="Selagem Térmica" price="R$ 60" />
                   </div>
@@ -249,14 +259,11 @@ const RenanBlack: React.FC = () => {
   );
 };
 
-// Cada serviço é um link para /agendamento
+// Cada serviço é um card que leva pra /agendamento já com o serviço pré-selecionado
 const PriceLine: React.FC<{ name: string; price: string }> = ({ name, price }) => (
-  <a href="/agendamento" className="price-line">
-    <span style={{ fontSize: '15px', fontWeight: 400 }}>{name}</span>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-      <span style={{ color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace', fontSize: '16px' }}>{price}</span>
-      <span className="agendar-label">Agendar →</span>
-    </div>
+  <a href={`/agendamento?servico=${encodeURIComponent(name)}`} className="price-card">
+    <span className="price-card-name">{name}</span>
+    <span className="price-card-price">{price}</span>
   </a>
 );
 

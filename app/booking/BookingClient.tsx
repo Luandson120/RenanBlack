@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Scissors, User, CreditCard, Smile, Star, Check } from "lucide-react";
 import { createBooking } from "@/app/actions/booking";
 import type { BarbershopService } from "@/generated/prisma";
@@ -8,7 +9,7 @@ import type { BarbershopService } from "@/generated/prisma";
 type DayOption = { name: string; num: number; month: number; year: number; disabled: boolean };
 type FormData = { name: string; phone: string; notes: string };
 type FormErrors = Partial<Record<keyof FormData, string>>;
-type Props = { barbershopId: string; services: BarbershopService[] };
+type Props = { barbershopId: string; services?: BarbershopService[] };
 
 const DAY_NAMES = ["Dom","Seg","Ter","Qua","Qui","Sex","Sab"];
 const MONTH_NAMES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -57,6 +58,16 @@ function validateForm(data: FormData): FormErrors {
   return errors;
 }
 
+// remove acentos/pontuacao pra comparar "Corte Degradê (Fade)" com variações vindas da URL
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
 function StepIndicator({ current }: { current: number }) {
   return (
     <div className="flex justify-center items-center mb-8 gap-1">
@@ -80,12 +91,14 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-export default function BookingClient({ barbershopId, services }: Props) {
+export default function BookingClient({ barbershopId, services = [] }: Props) {
   const WEEK = useMemo(() => buildWeek(), []);
   const firstAvailable = WEEK.find((d) => !d.disabled);
+  const searchParams = useSearchParams();
 
   const [step, setStep]               = useState(1);
-  const [serviceId, setServiceId]     = useState<string>(services?.[0]?.id ?? "");
+  const [serviceId, setServiceId]     = useState<string>(services[0]?.id ?? "");
+  const [autoSelected, setAutoSelected] = useState(false);
   const [selectedDay, setDay]         = useState<DayOption>(firstAvailable ?? WEEK[0]);
   const [selectedTime, setTime]       = useState<string>("");
   const [form, setForm]               = useState<FormData>({ name: "", phone: "", notes: "" });
@@ -97,6 +110,24 @@ export default function BookingClient({ barbershopId, services }: Props) {
   const [loadingTimes, setLoadingTimes]       = useState(false);
 
   const selectedService = services.find(s => s.id === serviceId);
+
+  // pré-seleciona o serviço quando vem de /agendamento?servico=Nome (cards da home)
+  useEffect(() => {
+    if (autoSelected || services.length === 0) return;
+    const servicoParam = searchParams.get("servico");
+    if (!servicoParam) { setAutoSelected(true); return; }
+
+    const target = normalize(servicoParam);
+    const match =
+      services.find((s) => normalize(s.name) === target) ??
+      services.find((s) => normalize(s.name).includes(target) || target.includes(normalize(s.name)));
+
+    if (match) {
+      setServiceId(match.id);
+      setStep(2);
+    }
+    setAutoSelected(true);
+  }, [searchParams, services, autoSelected]);
 
   useEffect(() => {
     setLoadingTimes(true);
@@ -170,22 +201,40 @@ export default function BookingClient({ barbershopId, services }: Props) {
       <div className="max-w-lg mx-auto pt-8">
         <StepIndicator current={step} />
 
+        {selectedService && step > 1 && (
+          <div className="flex items-center justify-between border border-[#d4a017]/20 bg-[#d4a017]/5 rounded px-3 py-2 mb-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[#f5f0e8]/40">Servico selecionado</p>
+              <p className="text-sm text-[#f5f0e8] font-medium">{selectedService.name}</p>
+            </div>
+            <button onClick={() => setStep(1)} className="text-xs text-[#d4a017] hover:underline">
+              Trocar
+            </button>
+          </div>
+        )}
+
         {step === 1 && (
           <div className="space-y-2">
-            {services.map((s) => (
-              <button key={s.id}
-                onClick={() => { setServiceId(s.id); setStep(2); }}
-                className={`w-full text-left p-4 rounded border transition flex items-center gap-3 ${serviceId === s.id ? "border-[#d4a017] bg-[#d4a017]/10" : "border-[#f5f0e8]/10 hover:border-[#d4a017]/40"}`}>
-                <span className="text-[#d4a017]">{serviceIcon(s.name)}</span>
-                <div className="flex-1">
-                  <p className="font-medium">{s.name}</p>
-                  <p className="text-sm text-[#f5f0e8]/50">
-                    {formatPrice(Number(s.price))}{isSubscription(s.name) && <span className="text-xs text-[#d4a017]/60">/mes</span>}
-                  </p>
-                </div>
-                {serviceId === s.id && <Check size={16} className="text-[#d4a017]" />}
-              </button>
-            ))}
+            {services.length === 0 ? (
+              <p className="text-[#f5f0e8]/40 text-sm text-center py-8">
+                Nenhum serviço disponível no momento.
+              </p>
+            ) : (
+              services.map((s) => (
+                <button key={s.id}
+                  onClick={() => { setServiceId(s.id); setStep(2); }}
+                  className={`w-full text-left p-4 rounded border transition flex items-center gap-3 ${serviceId === s.id ? "border-[#d4a017] bg-[#d4a017]/10" : "border-[#f5f0e8]/10 hover:border-[#d4a017]/40"}`}>
+                  <span className="text-[#d4a017]">{serviceIcon(s.name)}</span>
+                  <div className="flex-1">
+                    <p className="font-medium">{s.name}</p>
+                    <p className="text-sm text-[#f5f0e8]/50">
+                      {formatPrice(Number(s.price))}{isSubscription(s.name) && <span className="text-xs text-[#d4a017]/60">/mes</span>}
+                    </p>
+                  </div>
+                  {serviceId === s.id && <Check size={16} className="text-[#d4a017]" />}
+                </button>
+              ))
+            )}
           </div>
         )}
 
