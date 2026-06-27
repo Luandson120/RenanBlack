@@ -2,14 +2,15 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { Calendar, MapPin, Info, Menu, X, Handshake } from "lucide-react";
+import { Calendar, MapPin, Info, Menu, X, Handshake, Home, Scissors  } from "lucide-react";
 
 const links = [
+  { href: "/", label: "Home", icon: Home  },
   { href: "/agendamento", label: "Agendamento", icon: Calendar },
   { href: "/clube", label: "Clube", icon: Handshake },
   { href: "/localizacao", label: "Localização", icon: MapPin },
   { href: "/sobre", label: "Sobre", icon: Info },
-  { href: "/barbeiro/login", label: "Area do Barbeiro", icon: Info },
+  { href: "/barbeiro/login", label: "Area do Barbeiro", icon: Scissors  },
 ];
 
 export default function Sidebar() {

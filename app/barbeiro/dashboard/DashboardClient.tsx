@@ -423,7 +423,7 @@ export default function DashboardClient({
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => router.push("/barbeiro/servicos")}
-            className="text-xs px-2.5 py-1.5 rounded-full border border-[#2a2a2a] text-[#888] hover:text-[#e0e0e0] hover:border-[#444] transition-colors hidden sm:flex items-center gap-1.5"
+            className="text-xs px-2.5 py-1.5 rounded-full border border-[#2a2a2a] text-[#888] hover:text-[#e0e0e0] hover:border-[#444] transition-colors flex items-center gap-1.5"
           >
             Serviços
           </button>
