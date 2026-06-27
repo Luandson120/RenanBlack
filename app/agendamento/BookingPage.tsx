@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBooking } from "\@/app/actions/booking";
+import { createBooking } from "@/app/actions/booking";
 
-type Service = { id: string; name: string; price: number; duration: number };
+type Service = { id: string; name: string; price: number; duration?: number };
 
 type Props = {
   barbershopId: string;
@@ -46,7 +46,6 @@ export default function BookingPage({ barbershopId, barbershopName = "Barbearia"
 
   const selectedService = services.find(s => s.id === serviceId);
 
-  // Busca horários disponíveis quando a data muda
   useEffect(() => {
     if (!date) return;
     setLoadingTimes(true);
@@ -164,7 +163,9 @@ export default function BookingPage({ barbershopId, barbershopName = "Barbearia"
               onClick={() => { setServiceId(s.id); setTab("data"); }}
               className={`w-full text-left p-4 rounded-lg border transition ${serviceId === s.id ? "border-yellow-500 bg-yellow-500/10" : "border-gray-700 hover:border-gray-400"}`}>
               <p className="font-medium text-white">{s.name}</p>
-              <p className="text-sm text-gray-400">R$ {s.price} · {s.duration} min</p>
+              <p className="text-sm text-gray-400">
+                R$ {s.price}{s.duration ? ` · ${s.duration} min` : ""}
+              </p>
             </button>
           ))}
         </div>
@@ -204,7 +205,6 @@ export default function BookingPage({ barbershopId, barbershopName = "Barbearia"
           </div>
           <p className="text-xs text-gray-500 text-center">Seg–Sáb · Domingos fechado</p>
 
-          {/* Horários da API */}
           {date && (
             <div>
               <p className="text-xs text-gray-400 mb-2">{formatDateFull(date)}</p>

@@ -10,13 +10,13 @@ function getPrisma() {
   return new PrismaClient({ adapter });
 }
 
-function getBarbeiroId(): string | null {
-  return cookies().get("barbeiro_id")?.value ?? null;
+async function getBarbeiroId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get("barbeiro_id")?.value ?? null;
 }
 
-// ─── GET: retorna status atual da barbearia ───────────────────────────────────
 export async function GET() {
-  const barbeiroId = getBarbeiroId();
+  const barbeiroId = await getBarbeiroId();
   if (!barbeiroId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const prisma = getPrisma();
@@ -28,9 +28,8 @@ export async function GET() {
   }
 }
 
-
 export async function POST(req: NextRequest) {
-  const barbeiroId = getBarbeiroId();
+  const barbeiroId = await getBarbeiroId();
   if (!barbeiroId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const { aberta, bloquearHoje } = (await req.json()) as {
@@ -41,11 +40,8 @@ export async function POST(req: NextRequest) {
   const prisma = getPrisma();
   try {
     const barbershop = await prisma.barbershop.findFirst();
-    if (!barbershop) {
-      return NextResponse.json({ error: "Barbearia não encontrada" }, { status: 404 });
-    }
+    if (!barbershop) return NextResponse.json({ error: "Barbearia não encontrada" }, { status: 404 });
 
-    // 2. Atualiza o campo `aberta`
     await prisma.barbershop.update({
       where: { id: barbershop.id },
       data: { aberta },
@@ -58,17 +54,13 @@ export async function POST(req: NextRequest) {
       const fimDia = new Date();
       fimDia.setHours(23, 59, 59, 999);
 
-      // Pega os IDs dos serviços da barbearia
-      const serviceIds = barbershop
-        ? (
-            await prisma.barbershopService.findMany({
-              where: { barbershopId: barbershop.id },
-              select: { id: true },
-            })
-          ).map((s) => s.id)
-        : [];
+      const serviceIds = (
+        await prisma.barbershopService.findMany({
+          where: { barbershopId: barbershop.id },
+          select: { id: true },
+        })
+      ).map((s) => s.id);
 
-      // Cancela bookings de hoje ainda pendentes
       const resultado = await prisma.booking.updateMany({
         where: {
           serviceId: { in: serviceIds },

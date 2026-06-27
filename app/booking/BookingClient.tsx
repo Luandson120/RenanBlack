@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Scissors, User, CreditCard, Smile, Star, Check } from "lucide-react";
-import { createBooking } from "app/actions/booking";
+import { createBooking } from "@/app/actions/booking";
 import type { BarbershopService } from "@/generated/prisma";
 
 type DayOption = { name: string; num: number; month: number; year: number; disabled: boolean };
