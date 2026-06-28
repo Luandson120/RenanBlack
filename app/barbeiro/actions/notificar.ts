@@ -1,8 +1,8 @@
 "use server";
 
-import { sendWhatsAppMessage, buildClientMessage, buildBarberMessage } from "@/lib/whatsapp";
+import { sendWhatsAppTemplate, sendWhatsAppMessage, buildBarberMessage } from "@/lib/whatsapp";
 
-const BARBER_PHONE = process.env.WHATSAPP_BARBER_PHONE!; // número do Renan com DDI, ex: 5583988945683
+const BARBER_PHONE = process.env.WHATSAPP_BARBER_PHONE!;
 const BARBERSHOP_NAME = "Renan Black Barber";
 const BARBERSHOP_ADDRESS = "R. Barão do Rio Branco, Mamanguape - PB, 58280-000";
 
@@ -26,21 +26,14 @@ export async function notificarAgendamento({
     ? phoneFormatado
     : `55${phoneFormatado}`;
 
-  // Envia para o cliente
-  await sendWhatsAppMessage(
+  // Envia template de confirmação para o cliente
+  await sendWhatsAppTemplate(
     phoneComDDI,
-    buildClientMessage({
-      clientName,
-      serviceName,
-      date,
-      time,
-      price,
-      barbershopName: BARBERSHOP_NAME,
-      barbershopAddress: BARBERSHOP_ADDRESS,
-    })
+    "confirmacao_agendamento",
+    [clientName, serviceName, date, time, price]
   );
 
-  // Envia para o barbeiro
+  // Envia texto livre para o barbeiro
   await sendWhatsAppMessage(
     BARBER_PHONE,
     buildBarberMessage({

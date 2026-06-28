@@ -1,3 +1,5 @@
+// lib/whatsapp.ts
+
 const WHATSAPP_URL = `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
 const headers = {
@@ -5,14 +7,54 @@ const headers = {
   Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
 };
 
-// ─── Envio base ───────────────────────────────────────────────────
+// ─── Envio com template ───────────────────────────────────────────
+
+export async function sendWhatsAppTemplate(
+  to: string,
+  templateName: string,
+  parameters: string[]
+) {
+  console.log("📤 Enviando WhatsApp para:", to);
+
+  const res = await fetch(WHATSAPP_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: "pt_BR" },
+        components: [
+          {
+            type: "body",
+            parameters: parameters.map((value) => ({
+              type: "text",
+              text: value,
+            })),
+          },
+        ],
+      },
+    }),
+  });
+
+  const data = await res.json();
+
+  console.log("📬 WhatsApp status:", res.status);
+  console.log("📬 WhatsApp response:", JSON.stringify(data, null, 2));
+
+  if (!res.ok) {
+    console.error("❌ Erro WhatsApp:", JSON.stringify(data, null, 2));
+  }
+
+  return data;
+}
+
+// ─── Envio base (texto livre — só funciona fora do modo teste) ────
 
 export async function sendWhatsAppMessage(to: string, message: string) {
   console.log("📤 Enviando WhatsApp para:", to);
-  console.log("🔗 URL:", WHATSAPP_URL);
-  console.log("🔑 Token:", process.env.WHATSAPP_TOKEN ? "✅ definido" : "❌ não definido");
-  console.log("📱 Phone ID:", process.env.WHATSAPP_PHONE_ID ?? "❌ não definido");
-  console.log("🌐 API Version:", process.env.WHATSAPP_API_VERSION ?? "❌ não definido");
 
   const res = await fetch(WHATSAPP_URL, {
     method: "POST",
@@ -25,7 +67,7 @@ export async function sendWhatsAppMessage(to: string, message: string) {
     }),
   });
 
-  const data = await res.json(); // ← lê uma única vez
+  const data = await res.json();
 
   console.log("📬 WhatsApp status:", res.status);
   console.log("📬 WhatsApp response:", JSON.stringify(data, null, 2));
@@ -144,15 +186,17 @@ export function buildDailyReport({
   bookings: { clientName: string; service: string; time: string; price: string }[];
   barbershopName?: string;
 }): string {
-  const bookingList = bookings.length > 0
-    ? bookings
-        .map((b, i) => `${i + 1}. ${b.clientName} — ${b.service} às ${b.time} (R$ ${b.price})`)
-        .join("\n")
-    : "Nenhum agendamento hoje.";
+  const bookingList =
+    bookings.length > 0
+      ? bookings
+          .map((b, i) => `${i + 1}. ${b.clientName} — ${b.service} às ${b.time} (R$ ${b.price})`)
+          .join("\n")
+      : "Nenhum agendamento hoje.";
 
-  const subscriberList = subscribers.length > 0
-    ? subscribers.map((s, i) => `${i + 1}. ${s}`).join("\n")
-    : "Nenhum assinante hoje.";
+  const subscriberList =
+    subscribers.length > 0
+      ? subscribers.map((s, i) => `${i + 1}. ${s}`).join("\n")
+      : "Nenhum assinante hoje.";
 
   return `📊 *Relatório do dia — ${date}*
 

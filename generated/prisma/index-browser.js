@@ -180,6 +180,7 @@ exports.Prisma.BarbershopServiceScalarFieldEnum = {
   imageUrl: 'imageUrl',
   price: 'price',
   ativo: 'ativo',
+  durationMinutes: 'durationMinutes',
   barbershopId: 'barbershopId'
 };
 

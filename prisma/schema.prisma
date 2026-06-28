@@ -75,15 +75,16 @@ model Barbershop {
 }
 
 model BarbershopService {
-  id           String     @id @default(uuid())
-  name         String
-  description  String
-  imageUrl     String
-  price        Decimal    @db.Decimal(10, 2)
-   ativo        Boolean    @default(true)
-  barbershopId String
-  barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
-  bookings     Booking[]
+  id              String     @id @default(uuid())
+  name            String
+  description     String
+  imageUrl        String
+  price           Decimal    @db.Decimal(10, 2)
+  ativo           Boolean    @default(true)
+  durationMinutes Int        @default(60)
+  barbershopId    String
+  barbershop      Barbershop @relation(fields: [barbershopId], references: [id])
+  bookings        Booking[]
 }
 
 model Booking {
