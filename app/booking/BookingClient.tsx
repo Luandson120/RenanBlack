@@ -9,8 +9,7 @@ import type { BarbershopService } from "@/generated/prisma";
 type DayOption = { name: string; num: number; month: number; year: number; disabled: boolean };
 type FormData = { name: string; phone: string; notes: string };
 type FormErrors = Partial<Record<keyof FormData, string>>;
-type Props = { barbershopId: string; services?: BarbershopService[] };
-
+type Props = { barbershopId: string; services?: (Omit<BarbershopService, "price"> & { price: number })[] };
 const DAY_NAMES = ["Dom","Seg","Ter","Qua","Qui","Sex","Sab"];
 const MONTH_NAMES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const STEPS = ["Servico","Data","Horario","Dados"];
